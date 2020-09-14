@@ -10,6 +10,7 @@
 #include "Passes.h"
 
 #include "klee/Config/Version.h"
+#include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
@@ -258,6 +259,18 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
         dirty = true;
         break;
       }
+
+#if LLVM_VERSION_CODE >= LLVM_VERSION(8, 0)
+      case Intrinsic::is_constant: {
+        if(auto* constant = llvm::ConstantFoldInstruction(ii, ii->getModule()->getDataLayout()))
+          ii->replaceAllUsesWith(constant);
+        else
+          ii->replaceAllUsesWith(ConstantInt::getFalse(ii->getType()));
+        ii->eraseFromParent();
+        dirty = true;
+        break;
+      }
+#endif
 
       // The following instructions are all replaced by an "unreachable" since we don't actually use them...
 
