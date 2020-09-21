@@ -41,10 +41,10 @@ std::ofstream trace;
 /* ===================================================================== */
 // Command line switches
 /* ===================================================================== */
-KNOB<string> KnobStartFn(KNOB_MODE_WRITEONCE, "pintool", "start-fn",
+KNOB<std::string> KnobStartFn(KNOB_MODE_WRITEONCE, "pintool", "start-fn",
                          "nf_core_process",
                          "specify function at which to start tracing");
-KNOB<string> KnobEndFn(KNOB_MODE_WRITEONCE, "pintool", "end-fn", "exit@plt",
+KNOB<std::string> KnobEndFn(KNOB_MODE_WRITEONCE, "pintool", "end-fn", "exit@plt",
                        "specify function at which to end tracing");
 
 typedef struct {
@@ -390,8 +390,8 @@ EXCEPT_HANDLING_RESULT ExceptionHandler(THREADID tid,
 EXCEPT_HANDLING_RESULT GlobalHandler2(THREADID threadIndex,
                                       EXCEPTION_INFO *pExceptInfo,
                                       PHYSICAL_CONTEXT *pPhysCtxt, VOID *v) {
-  cout << "GlobalHandler2: Caught exception. "
-       << PIN_ExceptionToString(pExceptInfo) << endl;
+	std::cout << "GlobalHandler2: Caught exception. "
+		<< PIN_ExceptionToString(pExceptInfo) << std::endl;
   return EHR_CONTINUE_SEARCH;
 }
 
