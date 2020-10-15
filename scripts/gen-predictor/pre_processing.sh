@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 REUSED_SYMBOLS=$1
 FIXED_SYMBOLS=$2
-PORT_LIST=$2
+PORT_LIST=$3
 
 python3 $SCRIPT_DIR/gen_rules.py $PORT_LIST
 
