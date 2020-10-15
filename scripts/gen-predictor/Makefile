@@ -8,4 +8,4 @@ neg_tree.byte: neg_tree.ml codegen_rules.ml ir.ml import.ml domain.ml
 	corebuild -lib str neg_tree.byte -use-ocamlfind
 
 clean:
-	rm -f *.byte
+	rm -f *.byte program_rules.ml

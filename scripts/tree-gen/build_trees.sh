@@ -77,11 +77,11 @@ done
 # Fix reused symbols
 REUSED_SYMBOLS=$TRACES_DIR/reused-symbols.txt
 FIXED_SYMBOLS=$TRACES_DIR/fixed-symbols.txt
-bash $KLEE_DIR/scripts/gen-predictor/pre_processing.sh $REUSED_SYMBOLS $FIXED_SYMBOLS >> /dev/null
+bash $KLEE_DIR/scripts/gen-predictor/pre_processing.sh $REUSED_SYMBOLS $FIXED_SYMBOLS $PORTLIST >> /dev/null
 
 for TREE_FILE in $(ls $TRACES_DIR/../*-tree*.txt); do
   python3 $KLEE_DIR/scripts/gen-predictor/fancy_replace.py $TREE_FILE $FIXED_SYMBOLS >> /dev/null
-  bash $KLEE_DIR/scripts/gen-predictor/generate.sh $TREE_FILE $PORTLIST >> /dev/null
+  bash $KLEE_DIR/scripts/gen-predictor/generate.sh $TREE_FILE >> /dev/null
   sed -i 's/\([a-z_.]*\)\(_in_\)\([^ :)]*\)/\3.contains(\1)/' $TREE_FILE.py
   sed -i 's/is_full/is_full()/' $TREE_FILE.py
 done
