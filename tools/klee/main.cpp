@@ -24,8 +24,8 @@
 #include "klee/Internal/System/Time.h"
 #include "klee/Interpreter.h"
 #include "klee/OptionCategories.h"
-#include "klee/SolverCmdLine.h"
 #include "klee/Solver.h"
+#include "klee/SolverCmdLine.h"
 #include "klee/Statistics.h"
 #include "klee/util/ExprPPrinter.h"
 
@@ -72,278 +72,251 @@
 #include <iomanip>
 #include <iterator>
 #include <list>
+#include <regex>
 #include <sstream>
 #include <unordered_map>
-#include <regex>
 
 using namespace llvm;
 using namespace klee;
 
 namespace {
-  cl::opt<std::string>
-  InputFile(cl::desc("<input bytecode>"), cl::Positional, cl::init("-"));
+cl::opt<std::string> InputFile(cl::desc("<input bytecode>"), cl::Positional,
+                               cl::init("-"));
 
-  cl::list<std::string>
-  InputArgv(cl::ConsumeAfter,
-            cl::desc("<program arguments>..."));
+cl::list<std::string> InputArgv(cl::ConsumeAfter,
+                                cl::desc("<program arguments>..."));
 
+/*** Test case options ***/
 
-  /*** Test case options ***/
+cl::OptionCategory TestCaseCat(
+    "Test case options",
+    "These options select the files to generate for each test case.");
 
-  cl::OptionCategory TestCaseCat("Test case options",
-                                 "These options select the files to generate for each test case.");
+cl::opt<bool>
+    WriteNone("write-no-tests", cl::init(false),
+              cl::desc("Do not generate any test files (default=false)"),
+              cl::cat(TestCaseCat));
 
-  cl::opt<bool>
-  WriteNone("write-no-tests",
-            cl::init(false),
-            cl::desc("Do not generate any test files (default=false)"),
-            cl::cat(TestCaseCat));
+cl::opt<bool>
+    WriteCVCs("write-cvcs",
+              cl::desc("Write .cvc files for each test case (default=false)"),
+              cl::cat(TestCaseCat));
 
-  cl::opt<bool>
-  WriteCVCs("write-cvcs",
-            cl::desc("Write .cvc files for each test case (default=false)"),
-            cl::cat(TestCaseCat));
+cl::opt<bool> WriteKQueries(
+    "write-kqueries",
+    cl::desc("Write .kquery files for each test case (default=false)"),
+    cl::cat(TestCaseCat));
 
-  cl::opt<bool>
-  WriteKQueries("write-kqueries",
-                cl::desc("Write .kquery files for each test case (default=false)"),
-                cl::cat(TestCaseCat));
+cl::opt<bool> WriteSMT2s(
+    "write-smt2s",
+    cl::desc(
+        "Write .smt2 (SMT-LIBv2) files for each test case (default=false)"),
+    cl::cat(TestCaseCat));
 
-  cl::opt<bool>
-  WriteSMT2s("write-smt2s",
-             cl::desc("Write .smt2 (SMT-LIBv2) files for each test case (default=false)"),
-             cl::cat(TestCaseCat));
+cl::opt<bool> WriteCov(
+    "write-cov",
+    cl::desc("Write coverage information for each test case (default=false)"),
+    cl::cat(TestCaseCat));
 
-  cl::opt<bool>
-  WriteCov("write-cov",
-           cl::desc("Write coverage information for each test case (default=false)"),
-           cl::cat(TestCaseCat));
+cl::opt<bool> WriteTestInfo(
+    "write-test-info",
+    cl::desc("Write additional test case information (default=false)"),
+    cl::cat(TestCaseCat));
 
-  cl::opt<bool>
-  WriteTestInfo("write-test-info",
-                cl::desc("Write additional test case information (default=false)"),
-                cl::cat(TestCaseCat));
+cl::opt<bool>
+    WritePaths("write-paths",
+               cl::desc("Write .path files for each test case (default=false)"),
+               cl::cat(TestCaseCat));
 
-  cl::opt<bool>
-  WritePaths("write-paths",
-             cl::desc("Write .path files for each test case (default=false)"),
-             cl::cat(TestCaseCat));
+cl::opt<bool> WriteSymPaths(
+    "write-sym-paths",
+    cl::desc("Write .sym.path files for each test case (default=false)"),
+    cl::cat(TestCaseCat));
 
-  cl::opt<bool>
-  WriteSymPaths("write-sym-paths",
-                cl::desc("Write .sym.path files for each test case (default=false)"),
-                cl::cat(TestCaseCat));
+cl::opt<bool> DumpCallTracePrefixes(
+    "dump-call-trace-prefixes",
+    cl::desc("Compute and dump all the prefixes for the call "
+             "traces, generated according to klee_trace_*."),
+    cl::init(false), cl::cat(TestCaseCat));
 
+cl::opt<bool> DumpCallTraceTree(
+    "dump-call-trace-tree",
+    cl::desc("Compute and dump the tree formed by the call paths "
+             "generated according to klee_trace_*."),
+    cl::init(false), cl::cat(TestCaseCat));
 
-  cl::opt<bool> 
-  DumpCallTracePrefixes("dump-call-trace-prefixes",
-                        cl::desc("Compute and dump all the prefixes for the call "
-                                 "traces, generated according to klee_trace_*."),
-                        cl::init(false),
-                        cl::cat(TestCaseCat));
+cl::opt<bool> DumpConstraintTree("dump-constraint-tree",
+                                 cl::desc("Compute and dump the meta-info for "
+                                          "the tree formed by the constraints"),
+                                 cl::init(false), cl::cat(TestCaseCat));
 
-  cl::opt<bool>
-  DumpCallTraceTree( "dump-call-trace-tree",
-                    cl::desc("Compute and dump the tree formed by the call paths "
-                            "generated according to klee_trace_*."),
-                    cl::init(false),
-                    cl::cat(TestCaseCat));
+cl::opt<bool> DumpCallTraces(
+    "dump-call-traces",
+    cl::desc("Dump call traces into separate file each. The call "
+             "traces consist of function invocations with the "
+             "klee_trace_ret* intrinsic labels."),
+    cl::init(false), cl::cat(TestCaseCat));
 
-  cl::opt<bool> 
-  DumpConstraintTree("dump-constraint-tree",
-                    cl::desc("Compute and dump the meta-info for "
-                            "the tree formed by the constraints"),
-                    cl::init(false),
-                    cl::cat(TestCaseCat));
+cl::opt<bool> DumpCallTraceInstructions(
+    "dump-call-trace-instructions",
+    cl::desc("Log and dump each instruction executed for a call trace."),
+    cl::init(false), cl::cat(TestCaseCat));
 
-  cl::opt<bool>
-  DumpCallTraces("dump-call-traces",
-                cl::desc("Dump call traces into separate file each. The call "
-                        "traces consist of function invocations with the "
-                        "klee_trace_ret* intrinsic labels."),
-                cl::init(false),
-                cl::cat(TestCaseCat));
+/*** Startup options ***/
 
-  cl::opt<bool>
-  DumpCallTraceInstructions("dump-call-trace-instructions",
-                cl::desc("Log and dump each instruction executed for a call trace."),
-                cl::init(false),
-                cl::cat(TestCaseCat));
+cl::OptionCategory StartCat("Startup options",
+                            "These options affect how execution is started.");
 
-  /*** Startup options ***/
+cl::opt<std::string>
+    EntryPoint("entry-point",
+               cl::desc("Function in which to start execution (default=main)"),
+               cl::init("main"), cl::cat(StartCat));
 
-  cl::OptionCategory StartCat("Startup options",
-                              "These options affect how execution is started.");
-
-  cl::opt<std::string>
-  EntryPoint("entry-point",
-             cl::desc("Function in which to start execution (default=main)"),
-             cl::init("main"),
+cl::opt<std::string>
+    RunInDir("run-in-dir",
+             cl::desc("Change to the given directory before starting execution "
+                      "(default=location of tested file)."),
              cl::cat(StartCat));
 
-  cl::opt<std::string>
-  RunInDir("run-in-dir",
-           cl::desc("Change to the given directory before starting execution (default=location of tested file)."),
-           cl::cat(StartCat));
-  
-  cl::opt<std::string>
-  OutputDir("output-dir",
-            cl::desc("Directory in which to write results (default=klee-out-<N>)"),
-            cl::init(""),
-            cl::cat(StartCat));
+cl::opt<std::string> OutputDir(
+    "output-dir",
+    cl::desc("Directory in which to write results (default=klee-out-<N>)"),
+    cl::init(""), cl::cat(StartCat));
 
-  cl::opt<std::string>
-  Environ("env-file",
-          cl::desc("Parse environment from the given file (in \"env\" format)"),
-          cl::cat(StartCat));
+cl::opt<std::string> Environ(
+    "env-file",
+    cl::desc("Parse environment from the given file (in \"env\" format)"),
+    cl::cat(StartCat));
 
-  cl::opt<bool>
-  OptimizeModule("optimize",
-                 cl::desc("Optimize the code before execution (default=false)."),
-		 cl::init(false),
-                 cl::cat(StartCat));
+cl::opt<bool> OptimizeModule(
+    "optimize", cl::desc("Optimize the code before execution (default=false)."),
+    cl::init(false), cl::cat(StartCat));
 
-  cl::opt<bool>
-  WarnAllExternals("warn-all-external-symbols",
-                   cl::desc("Issue a warning on startup for all external symbols (default=false)."),
-                   cl::cat(StartCat));
-  
+cl::opt<bool> WarnAllExternals(
+    "warn-all-external-symbols",
+    cl::desc(
+        "Issue a warning on startup for all external symbols (default=false)."),
+    cl::cat(StartCat));
 
-  /*** Linking options ***/
+/*** Linking options ***/
 
-  cl::OptionCategory LinkCat("Linking options",
-                             "These options control the libraries being linked.");
+cl::OptionCategory LinkCat("Linking options",
+                           "These options control the libraries being linked.");
 
-  enum class LibcType { FreeStandingLibc, KleeLibc, UcLibc };
+enum class LibcType { FreeStandingLibc, KleeLibc, UcLibc };
 
-  cl::opt<LibcType>
-  Libc("libc",
-       cl::desc("Choose libc version (none by default)."),
-       cl::values(
-                  clEnumValN(LibcType::FreeStandingLibc,
-                             "none",
-                             "Don't link in a libc (only provide freestanding environment)"),
-                  clEnumValN(LibcType::KleeLibc,
-                             "klee",
-                             "Link in KLEE's libc"),
-                  clEnumValN(LibcType::UcLibc, "uclibc",
-                             "Link in uclibc (adapted for KLEE)")
-                  KLEE_LLVM_CL_VAL_END),
-       cl::init(LibcType::FreeStandingLibc),
-       cl::cat(LinkCat));
+cl::opt<LibcType> Libc(
+    "libc", cl::desc("Choose libc version (none by default)."),
+    cl::values(
+        clEnumValN(
+            LibcType::FreeStandingLibc, "none",
+            "Don't link in a libc (only provide freestanding environment)"),
+        clEnumValN(LibcType::KleeLibc, "klee", "Link in KLEE's libc"),
+        clEnumValN(LibcType::UcLibc, "uclibc",
+                   "Link in uclibc (adapted for KLEE)") KLEE_LLVM_CL_VAL_END),
+    cl::init(LibcType::FreeStandingLibc), cl::cat(LinkCat));
 
-  cl::list<std::string>
-  LinkLibraries("link-llvm-lib",
-		cl::desc("Link the given library before execution. Can be used multiple times."),
-		cl::value_desc("library file"),
-                cl::cat(LinkCat));
+cl::list<std::string> LinkLibraries(
+    "link-llvm-lib",
+    cl::desc(
+        "Link the given library before execution. Can be used multiple times."),
+    cl::value_desc("library file"), cl::cat(LinkCat));
 
-  cl::opt<bool>
-  WithPOSIXRuntime("posix-runtime",
-                   cl::desc("Link with POSIX runtime. Options that can be passed as arguments to the programs are: --sym-arg <max-len>  --sym-args <min-argvs> <max-argvs> <max-len> + file model options (default=false)."),
-                   cl::init(false),
-                   cl::cat(LinkCat));
+cl::opt<bool> WithPOSIXRuntime(
+    "posix-runtime",
+    cl::desc("Link with POSIX runtime. Options that can be passed as arguments "
+             "to the programs are: --sym-arg <max-len>  --sym-args <min-argvs> "
+             "<max-argvs> <max-len> + file model options (default=false)."),
+    cl::init(false), cl::cat(LinkCat));
 
+/*** Checks options ***/
 
-  /*** Checks options ***/
+cl::OptionCategory
+    ChecksCat("Checks options",
+              "These options control some of the checks being done by KLEE.");
 
-  cl::OptionCategory ChecksCat("Checks options",
-                               "These options control some of the checks being done by KLEE.");
+cl::opt<bool>
+    CheckDivZero("check-div-zero",
+                 cl::desc("Inject checks for division-by-zero (default=true)"),
+                 cl::init(true), cl::cat(ChecksCat));
 
-  cl::opt<bool>
-  CheckDivZero("check-div-zero",
-               cl::desc("Inject checks for division-by-zero (default=true)"),
-               cl::init(true),
-               cl::cat(ChecksCat));
+cl::opt<bool>
+    CheckOvershift("check-overshift",
+                   cl::desc("Inject checks for overshift (default=true)"),
+                   cl::init(true), cl::cat(ChecksCat));
 
-  cl::opt<bool>
-  CheckOvershift("check-overshift",
-                 cl::desc("Inject checks for overshift (default=true)"),
-                 cl::init(true),
-                 cl::cat(ChecksCat));
+cl::opt<bool>
+    OptExitOnError("exit-on-error",
+                   cl::desc("Exit KLEE if an error in the tested application "
+                            "has been found (default=false)"),
+                   cl::init(false), cl::cat(TerminationCat));
 
+/*** Replaying options ***/
 
+cl::OptionCategory ReplayCat("Replaying options",
+                             "These options impact replaying of test cases.");
 
-  cl::opt<bool>
-  OptExitOnError("exit-on-error",
-                 cl::desc("Exit KLEE if an error in the tested application has been found (default=false)"),
-                 cl::init(false),
-                 cl::cat(TerminationCat));
+cl::opt<bool> ReplayKeepSymbolic(
+    "replay-keep-symbolic",
+    cl::desc("Replay the test cases only by asserting "
+             "the bytes, not necessarily making them concrete."),
+    cl::cat(ReplayCat));
 
+cl::list<std::string>
+    ReplayKTestFile("replay-ktest-file",
+                    cl::desc("Specify a ktest file to use for replay"),
+                    cl::value_desc("ktest file"), cl::cat(ReplayCat));
 
-  /*** Replaying options ***/
-  
-  cl::OptionCategory ReplayCat("Replaying options",
-                               "These options impact replaying of test cases.");
-  
-  cl::opt<bool>
-  ReplayKeepSymbolic("replay-keep-symbolic",
-                     cl::desc("Replay the test cases only by asserting "
-                              "the bytes, not necessarily making them concrete."),
-                     cl::cat(ReplayCat));
+cl::list<std::string>
+    ReplayKTestDir("replay-ktest-dir",
+                   cl::desc("Specify a directory to replay ktest files from"),
+                   cl::value_desc("output directory"), cl::cat(ReplayCat));
 
-  cl::list<std::string>
-  ReplayKTestFile("replay-ktest-file",
-                  cl::desc("Specify a ktest file to use for replay"),
-                  cl::value_desc("ktest file"),
-                  cl::cat(ReplayCat));
+cl::opt<std::string> ReplayPathFile("replay-path",
+                                    cl::desc("Specify a path file to replay"),
+                                    cl::value_desc("path file"),
+                                    cl::cat(ReplayCat));
 
-  cl::list<std::string>
-  ReplayKTestDir("replay-ktest-dir",
-                 cl::desc("Specify a directory to replay ktest files from"),
-                 cl::value_desc("output directory"),
-                 cl::cat(ReplayCat));
+cl::opt<bool> CondoneUndeclaredHavocs(
+    "condone-undeclared-havocs",
+    cl::desc("Do not throw an error if a memory location changes "
+             "its value during loop invarint analysis"),
+    cl::init(false), cl::cat(ReplayCat));
 
-  cl::opt<std::string>
-  ReplayPathFile("replay-path",
-                 cl::desc("Specify a path file to replay"),
-                 cl::value_desc("path file"),
-                 cl::cat(ReplayCat));
+cl::list<std::string> SeedOutFile("seed-file",
+                                  cl::desc(".ktest file to be used as seed"),
+                                  cl::cat(SeedingCat));
 
-  cl::opt<bool>
-  CondoneUndeclaredHavocs("condone-undeclared-havocs",
-                          cl::desc("Do not throw an error if a memory location changes "
-                                    "its value during loop invarint analysis"),
-                          cl::init(false),
-                          cl::cat(ReplayCat));
+cl::list<std::string>
+    SeedOutDir("seed-dir",
+               cl::desc("Directory with .ktest files to be used as seeds"),
+               cl::cat(SeedingCat));
 
+cl::opt<unsigned> MakeConcreteSymbolic(
+    "make-concrete-symbolic",
+    cl::desc("Probabilistic rate at which to make concrete reads symbolic, "
+             "i.e. approximately 1 in n concrete reads will be made symbolic "
+             "(0=off, 1=all).  "
+             "Used for testing (default=0)"),
+    cl::init(0), cl::cat(DebugCat));
 
-  cl::list<std::string>
-  SeedOutFile("seed-file",
-              cl::desc(".ktest file to be used as seed"),
-              cl::cat(SeedingCat));
+cl::opt<unsigned> MaxTests(
+    "max-tests",
+    cl::desc("Stop execution after generating the given number of tests. Extra "
+             "tests corresponding to partially explored paths will also be "
+             "dumped.  Set to 0 to disable (default=0)"),
+    cl::init(0), cl::cat(TerminationCat));
 
-  cl::list<std::string>
-  SeedOutDir("seed-dir",
-             cl::desc("Directory with .ktest files to be used as seeds"),
-             cl::cat(SeedingCat));
+cl::opt<bool>
+    Watchdog("watchdog",
+             cl::desc("Use a watchdog process to enforce --max-time."),
+             cl::init(0), cl::cat(TerminationCat));
 
-  cl::opt<unsigned>
-  MakeConcreteSymbolic("make-concrete-symbolic",
-                       cl::desc("Probabilistic rate at which to make concrete reads symbolic, "
-				"i.e. approximately 1 in n concrete reads will be made symbolic (0=off, 1=all).  "
-				"Used for testing (default=0)"),
-                       cl::init(0),
-                       cl::cat(DebugCat));
-
-  cl::opt<unsigned>
-  MaxTests("max-tests",
-           cl::desc("Stop execution after generating the given number of tests. Extra tests corresponding to partially explored paths will also be dumped.  Set to 0 to disable (default=0)"),
-           cl::init(0),
-           cl::cat(TerminationCat));
-
-  cl::opt<bool>
-  Watchdog("watchdog",
-           cl::desc("Use a watchdog process to enforce --max-time."),
-           cl::init(0),
-           cl::cat(TerminationCat));
-
-  cl::opt<bool>
-  Libcxx("libcxx",
-           cl::desc("Link the llvm libc++ library into the bitcode (default=false)"),
-           cl::init(false),
-           cl::cat(LinkCat));
-} //namespace
+cl::opt<bool> Libcxx(
+    "libcxx",
+    cl::desc("Link the llvm libc++ library into the bitcode (default=false)"),
+    cl::init(false), cl::cat(LinkCat));
+} // namespace
 
 namespace klee {
 extern cl::opt<std::string> MaxTime;
@@ -421,13 +394,13 @@ private:
 
   CallTree m_callTree;
   ConstraintTree m_constraintTree;
-  std::map<std::string,std::map<int,ref<Expr>>> reused_symbols;
+  std::map<std::string, std::map<int, ref<Expr>>> reused_symbols;
 
 public:
   KleeHandler(int argc, char **argv);
   ~KleeHandler();
 
-  std::unordered_map<llvm::Instruction*, std::string> instr_str_map;
+  std::unordered_map<llvm::Instruction *, std::string> instr_str_map;
 
   llvm::raw_ostream &getInfoStream() const { return *m_infoFile; }
   /// Returns the number of test cases successfully generated so far
@@ -442,9 +415,11 @@ public:
   void processCallPath(const ExecutionState &state);
 
   std::string getOutputFilename(const std::string &filename);
-  std::unique_ptr<llvm::raw_fd_ostream> openOutputFile(const std::string &filename);
+  std::unique_ptr<llvm::raw_fd_ostream>
+  openOutputFile(const std::string &filename);
   std::string getTestFilename(const std::string &suffix, unsigned id);
-  std::unique_ptr<llvm::raw_fd_ostream> openTestFile(const std::string &suffix, unsigned id);
+  std::unique_ptr<llvm::raw_fd_ostream> openTestFile(const std::string &suffix,
+                                                     unsigned id);
 
   // load a .path file
   static void loadPathFile(std::string name, std::vector<bool> &buffer);
@@ -460,7 +435,8 @@ public:
   void dumpConstraintTree();
   void dumpCallPath(const ExecutionState &state, llvm::raw_ostream *file);
   void dumpReusedSymbols();
-  void dumpCallPathInstructions(const ExecutionState &state, llvm::raw_ostream *file, unsigned id);
+  void dumpCallPathInstructions(const ExecutionState &state,
+                                llvm::raw_ostream *file, unsigned id);
 };
 
 KleeHandler::KleeHandler(int argc, char **argv)
@@ -609,7 +585,7 @@ void KleeHandler::processTestCase(const ExecutionState &state,
                                   const char *errorMessage,
                                   const char *errorSuffix) {
   if (!WriteNone) {
-    std::vector< std::pair<std::string, std::vector<unsigned char> > > out;
+    std::vector<std::pair<std::string, std::vector<unsigned char>>> out;
     std::vector<HavocedLocation> havocs;
     bool success = m_interpreter->getSymbolicSolution(state, out, havocs);
 
@@ -702,17 +678,17 @@ void KleeHandler::processTestCase(const ExecutionState &state,
         m_constraintTree.addTest(id, state);
       }
 
-      for (auto it: state.reused_symbols){
-        if(reused_symbols.find(it.first) == reused_symbols.end()){
+      for (auto it : state.reused_symbols) {
+        if (reused_symbols.find(it.first) == reused_symbols.end()) {
           reused_symbols[it.first] = it.second;
           continue;
         }
         reused_symbols[it.first].insert(it.second.begin(), it.second.end());
       }
-      
-      if(DumpCallTraceInstructions){
-        std::unique_ptr<llvm::raw_fd_ostream> instr_trace_file = 
-          openOutputFile(getTestFilename("ll.demarcated", id));
+
+      if (DumpCallTraceInstructions) {
+        std::unique_ptr<llvm::raw_fd_ostream> instr_trace_file =
+            openOutputFile(getTestFilename("ll.demarcated", id));
         dumpCallPathInstructions(state, instr_trace_file.get(), id);
       }
 
@@ -742,7 +718,7 @@ void KleeHandler::processTestCase(const ExecutionState &state,
 
     if (errorMessage || WriteKQueries) {
       std::string constraints;
-      m_interpreter->getConstraintLog(state, constraints,Interpreter::KQUERY);
+      m_interpreter->getConstraintLog(state, constraints, Interpreter::KQUERY);
       auto f = openTestFile("kquery", id);
       if (f)
         *f << constraints;
@@ -760,10 +736,10 @@ void KleeHandler::processTestCase(const ExecutionState &state,
 
     if (WriteSMT2s) {
       std::string constraints;
-        m_interpreter->getConstraintLog(state, constraints, Interpreter::SMTLIB2);
-        auto f = openTestFile("smt2", id);
-        if (f)
-          *f << constraints;
+      m_interpreter->getConstraintLog(state, constraints, Interpreter::SMTLIB2);
+      auto f = openTestFile("smt2", id);
+      if (f)
+        *f << constraints;
     }
 
     if (m_symPathWriter) {
@@ -1135,7 +1111,8 @@ void KleeHandler::processCallPath(const ExecutionState &state) {
   }
 }
 
-std::unique_ptr<llvm::raw_fd_ostream> KleeHandler::openNextCallPathPrefixFile() {
+std::unique_ptr<llvm::raw_fd_ostream>
+KleeHandler::openNextCallPathPrefixFile() {
   unsigned id = ++m_callPathPrefixIndex;
   std::stringstream filename;
   filename << "call-prefix" << std::setfill('0') << std::setw(6) << id << '.'
@@ -1153,34 +1130,36 @@ void KleeHandler::dumpCallPathTree() {
   std::string filename = "call-tree.txt";
   std::unique_ptr<llvm::raw_ostream> tree_file = this->openOutputFile(filename);
   filename = "calls.txt";
-  std::unique_ptr<llvm::raw_ostream> calls_file = this->openOutputFile(filename);
-  m_callTree.dumpCallTree(std::vector<CallPathTip>(), tree_file.get(), calls_file.get());
+  std::unique_ptr<llvm::raw_ostream> calls_file =
+      this->openOutputFile(filename);
+  m_callTree.dumpCallTree(std::vector<CallPathTip>(), tree_file.get(),
+                          calls_file.get());
 }
 
 void KleeHandler::dumpConstraintTree() {
   std::string filename = "constraint-tree.txt";
   std::unique_ptr<llvm::raw_ostream> tree_file = this->openOutputFile(filename);
   filename = "constraint-branches.txt";
-  std::unique_ptr<llvm::raw_ostream> constraints_file = this->openOutputFile(filename);
+  std::unique_ptr<llvm::raw_ostream> constraints_file =
+      this->openOutputFile(filename);
   m_constraintTree.dumpConstraintTree(tree_file.get(), constraints_file.get());
 }
 
 void KleeHandler::dumpReusedSymbols() {
   std::string filename = "reused-symbols.txt";
-  std::unique_ptr<llvm::raw_ostream> symbol_file = this->openOutputFile(filename);
-  for(auto it : reused_symbols){
-    if(it.second.size()>1){
-      for(auto it1: it.second){
+  std::unique_ptr<llvm::raw_ostream> symbol_file =
+      this->openOutputFile(filename);
+  for (auto it : reused_symbols) {
+    if (it.second.size() > 1) {
+      for (auto it1 : it.second) {
         std::string symbol_name = it.first;
-        if(it1.first>0){
+        if (it1.first > 0) {
           symbol_name = symbol_name + "_" + std::to_string(it1.first);
         }
         *symbol_file << symbol_name << " | " << it1.second << "\n";
       }
-
     }
-    for(auto it1: it.second){
-
+    for (auto it1 : it.second) {
     }
   }
 }
@@ -1278,79 +1257,222 @@ void KleeHandler::dumpCallPath(const ExecutionState &state,
   }
 }
 
-//This Handler is very hard-coded and may need maintainence from time to time.
-void KleeHandler::dumpCallPathInstructions(const ExecutionState &state, llvm::raw_ostream *file, unsigned id) {
+// This Handler is very hard-coded and may need maintainence from time to time.
+void KleeHandler::dumpCallPathInstructions(const ExecutionState &state,
+                                           llvm::raw_ostream *file,
+                                           unsigned id) {
   *file << ";;-- LLVM Instruction trace -- " << id << "\n";
   *file << "Call Stack | Current Function | Instruction\n";
 
   // Initialize the function lists
-  std::vector<std::string> stateful_fns = {"dchain_allocate", "dchain_allocate_new_index", "dchain_rejuvenate_index", "dchain_expire_one_index", "dmap_allocate", "dmap_get_a", "dmap_get_b", "dmap_put", "dmap_erase", "dmap_get_value", "dmap_size", "expire_items", "expire_items_single_map", "map_impl_init", "map_impl_get", "map_impl_put", "map_impl_erase", "map_allocate", "map_get", "map_put", "map_erase", "map_size", "dchain_make_space", "dchain_reset", "map_set_layout", "map_entry_condition", "map_set_entry_condition", "map_reset", "map_increase_occupancy", "map_decrease_occupancy", "dmap_set_layout", "entry_condition", "dmap_set_entry_condition", "dmap_reset", "dmap_increase_occupancy", "dmap_decrease_occupancy", "dmap_lowerbound_on_occupancy", "dmap_occupancy_p", "vector_allocate", "vector_borrow", "vector_return", "vector_set_layout", "vector_reset", "handle_packet_timestamp", "lpm_lookup", "lpm_init", "memcpy", "trace_reset_buffers", "map_get_1", "map_get_2", "map2_get_1", "map2_put", "map2_erase", "dchain2_allocate", "dchain2_allocate_new_index", "dchain2_rejuvenate_index", "dchain2_expire_one_index", "lb_find_preferred_available_backend", "dchain_is_index_allocated", "dchain2_is_index_allocated", "dchain2_make_space", "dchain2_reset", "map2_set_layout", "map2_entry_condition", "map2_set_entry_condition", "map2_reset", "map2_increase_occupancy", "map2_decrease_occupancy"};
-  std::vector<std::string> dpdk_fns = {"rte_reset", "rte_arch_bswap16", "rte_arch_bswap32", "rte_arch_bswap64", "__rte_raw_cksum", "__rte_raw_cksum_reduce", "rte_raw_cksum", "rte_ipv4_phdr_cksum", "rte_ipv4_cksum", "rte_ipv4_udptcp_cksum", "rte_exit", "rte_lcore_is_enabled", "rte_get_master_lcore", "rte_get_closest_next_lcore", "rte_eth_tx_burst", "flood", "rte_pktmbuf_free", "rte_get_tsc_hz", "rte_lcore_id", "rte_rdtsc", "rte_eth_rx_burst", "rte_prefetch0", "rte_lcore_is_enabled", "rte_lcore_to_socket_id", "rte_socket_id", "rte_eth_dev_socket_id", "rte_eth_link_get_nowait", "rte_delay_ms", "rte_eal_init", "rte_eth_dev_count", "rte_lcore_count", "rte_eth_dev_configure", "rte_eth_macaddr_get", "rte_eth_dev_info_get", "rte_eth_tx_queue_setup", "rte_eth_rx_queue_setup", "rte_eth_dev_start", "rte_eth_promiscuous_enable", "rte_eal_mp_remote_launch", "rte_eal_wait_lcore", "rte_pktmbuf_pool_create", "rte_get_master_lcore", "rte_strerror", "rte_pktmbuf_clone", "cmdline_isendoftoken", "nf_set_ipv4_checksum"};
-  std::vector<std::string> time_fns = {"start_time", "restart_time", "current_time", "get_start_time_internal", "get_start_time", "clock_gettime", "gettimeofday"};
-  std::vector<std::string> verif_fns = {"loop_iteration_assumptions", "loop_iteration_assertions", "loop_invariant_consume", "loop_invariant_produce", "loop_iteration_begin", "loop_iteration_end", "loop_enumeration_begin", "loop_enumeration_end", "allocate_unique_name", "count_reuse", "init_test_data", "report_internal_error", "rand_byte", "bridge_loop_invariant_consume", "bridge_loop_invariant_produce", "bridge_loop_iteration_begin", "bridge_loop_iteration_end", "bridge_loop_iteration_assumptions", "nf_loop_iteration_begin", "nf_add_loop_iteration_assumptions", "nf_loop_iteration_end", "concretize_devices", "flow_consistency", "rte_eth_dev_count", "flood", "exit", "__uClibc_fini", "_stdio_term"};
+  std::vector<std::string> stateful_fns = {
+      "dchain_allocate",
+      "dchain_allocate_new_index",
+      "dchain_rejuvenate_index",
+      "dchain_expire_one_index",
+      "dmap_allocate",
+      "dmap_get_a",
+      "dmap_get_b",
+      "dmap_put",
+      "dmap_erase",
+      "dmap_get_value",
+      "dmap_size",
+      "expire_items",
+      "expire_items_single_map",
+      "map_impl_init",
+      "map_impl_get",
+      "map_impl_put",
+      "map_impl_erase",
+      "map_allocate",
+      "map_get",
+      "map_put",
+      "map_erase",
+      "map_size",
+      "dchain_make_space",
+      "dchain_reset",
+      "map_set_layout",
+      "map_entry_condition",
+      "map_set_entry_condition",
+      "map_reset",
+      "map_increase_occupancy",
+      "map_decrease_occupancy",
+      "dmap_set_layout",
+      "entry_condition",
+      "dmap_set_entry_condition",
+      "dmap_reset",
+      "dmap_increase_occupancy",
+      "dmap_decrease_occupancy",
+      "dmap_lowerbound_on_occupancy",
+      "dmap_occupancy_p",
+      "vector_allocate",
+      "vector_borrow",
+      "vector_return",
+      "vector_set_layout",
+      "vector_reset",
+      "handle_packet_timestamp",
+      "lpm_lookup",
+      "lpm_init",
+      "memcpy",
+      "trace_reset_buffers",
+      "map_get_1",
+      "map_get_2",
+      "map2_get_1",
+      "map2_put",
+      "map2_erase",
+      "dchain2_allocate",
+      "dchain2_allocate_new_index",
+      "dchain2_rejuvenate_index",
+      "dchain2_expire_one_index",
+      "lb_find_preferred_available_backend",
+      "dchain_is_index_allocated",
+      "dchain2_is_index_allocated",
+      "dchain2_make_space",
+      "dchain2_reset",
+      "map2_set_layout",
+      "map2_entry_condition",
+      "map2_set_entry_condition",
+      "map2_reset",
+      "map2_increase_occupancy",
+      "map2_decrease_occupancy"};
+  std::vector<std::string> dpdk_fns = {"rte_reset",
+                                       "rte_arch_bswap16",
+                                       "rte_arch_bswap32",
+                                       "rte_arch_bswap64",
+                                       "__rte_raw_cksum",
+                                       "__rte_raw_cksum_reduce",
+                                       "rte_raw_cksum",
+                                       "rte_ipv4_phdr_cksum",
+                                       "rte_ipv4_cksum",
+                                       "rte_ipv4_udptcp_cksum",
+                                       "rte_exit",
+                                       "rte_lcore_is_enabled",
+                                       "rte_get_master_lcore",
+                                       "rte_get_closest_next_lcore",
+                                       "rte_eth_tx_burst",
+                                       "flood",
+                                       "rte_pktmbuf_free",
+                                       "rte_get_tsc_hz",
+                                       "rte_lcore_id",
+                                       "rte_rdtsc",
+                                       "rte_eth_rx_burst",
+                                       "rte_prefetch0",
+                                       "rte_lcore_is_enabled",
+                                       "rte_lcore_to_socket_id",
+                                       "rte_socket_id",
+                                       "rte_eth_dev_socket_id",
+                                       "rte_eth_link_get_nowait",
+                                       "rte_delay_ms",
+                                       "rte_eal_init",
+                                       "rte_eth_dev_count",
+                                       "rte_lcore_count",
+                                       "rte_eth_dev_configure",
+                                       "rte_eth_macaddr_get",
+                                       "rte_eth_dev_info_get",
+                                       "rte_eth_tx_queue_setup",
+                                       "rte_eth_rx_queue_setup",
+                                       "rte_eth_dev_start",
+                                       "rte_eth_promiscuous_enable",
+                                       "rte_eal_mp_remote_launch",
+                                       "rte_eal_wait_lcore",
+                                       "rte_pktmbuf_pool_create",
+                                       "rte_get_master_lcore",
+                                       "rte_strerror",
+                                       "rte_pktmbuf_clone",
+                                       "cmdline_isendoftoken",
+                                       "nf_set_ipv4_checksum"};
+  std::vector<std::string> time_fns = {
+      "start_time",     "restart_time",
+      "current_time",   "get_start_time_internal",
+      "get_start_time", "clock_gettime",
+      "gettimeofday"};
+  std::vector<std::string> verif_fns = {"loop_iteration_assumptions",
+                                        "loop_iteration_assertions",
+                                        "loop_invariant_consume",
+                                        "loop_invariant_produce",
+                                        "loop_iteration_begin",
+                                        "loop_iteration_end",
+                                        "loop_enumeration_begin",
+                                        "loop_enumeration_end",
+                                        "allocate_unique_name",
+                                        "count_reuse",
+                                        "init_test_data",
+                                        "report_internal_error",
+                                        "rand_byte",
+                                        "bridge_loop_invariant_consume",
+                                        "bridge_loop_invariant_produce",
+                                        "bridge_loop_iteration_begin",
+                                        "bridge_loop_iteration_end",
+                                        "bridge_loop_iteration_assumptions",
+                                        "nf_loop_iteration_begin",
+                                        "nf_add_loop_iteration_assumptions",
+                                        "nf_loop_iteration_end",
+                                        "concretize_devices",
+                                        "flow_consistency",
+                                        "rte_eth_dev_count",
+                                        "flood",
+                                        "exit",
+                                        "__uClibc_fini",
+                                        "_stdio_term"};
   std::regex symbol_re("klee*");
   std::regex symbol2_re("_exit@plt*");
 
-  //Now we start iterating over the input trace and print only stuff we demarcate
+  std::vector<std::vector<std::string>> function_list = {stateful_fns, dpdk_fns,
+                                                         time_fns, verif_fns};
   int currently_demarcated = 0;
   std::string currently_demarcated_fn = "";
-  for(auto it: state.stackInstrMap){
+
+  // Now we start iterating over the input trace and print only stuff we
+  // demarcate
+  int check = 0;
+  for (auto it : state.stackInstrMap) {
     std::string opcode = it.second->getOpcodeName();
     std::string current_fn_name;
-    if(it.first.size() != 0){
-      current_fn_name = it.first[it.first.size()-1];
-    }
-    else{
+    if (it.first.size() != 0) {
+      current_fn_name = it.first[it.first.size() - 1];
+    } else {
       continue; // Cant do anything with an empty call stack
     }
-    int function_list_index[4] = {0,0,0,0};
-    std::vector<std::string> function_list_name = {"libVig", "DPDK", "TIME", "Verification"};
-    std::vector<std::vector<std::string>> function_list = {stateful_fns, dpdk_fns, time_fns, verif_fns};
 
-    if(currently_demarcated && opcode != "ret"){
+    if (currently_demarcated && opcode != "ret") {
       continue;
     }
 
-    if(currently_demarcated && opcode == "ret" && current_fn_name == currently_demarcated_fn){
+    if (currently_demarcated && opcode == "ret" &&
+        current_fn_name == currently_demarcated_fn) {
       currently_demarcated = 0;
       currently_demarcated_fn = "";
+      continue;
     }
-    else if(currently_demarcated == 0){
-      std::string fn_name;
+
+    else if (currently_demarcated == 0 && check == 1) {
+      check = 0;
       int found = 0;
-      for(auto it1 : it.first){
-        fn_name = it1;
-        for(int list_counter = 0; list_counter <= 3; list_counter++){
-          if(std::find(function_list[list_counter].begin(), function_list[list_counter].end(), it1) != function_list[list_counter].end()){
-            function_list_index[list_counter] = 1;
-            found = 1;
-            break;
-          }
-        }
-        if(found == 1){
+      for (int list_counter = 0; list_counter <= 3; list_counter++) {
+        if (std::find(function_list[list_counter].begin(),
+                      function_list[list_counter].end(),
+                      current_fn_name) != function_list[list_counter].end()) {
+          found = 1;
           break;
         }
       }
-
-      int check = function_list_index[0] || function_list_index[1] || function_list_index[2] || function_list_index[3];
-
-      if(check){
+      if (found) {
         currently_demarcated = 1;
         currently_demarcated_fn = current_fn_name;
       }
+    }
 
-      if(!check){
-        int s = it.first.size();
-        if(s!=0){
-          for(auto it2: it.first){
-            *file << it2 << " ";
-          }
-          *file << "| " << it.first[s-1] << "| " << *(it.second) << "\n";
+    if (currently_demarcated == 0) {
+      if (opcode == "call")
+        check = 1;
+      int s = it.first.size();
+      if (s != 0) {
+        for (auto it2 : it.first) {
+          *file << it2 << " ";
         }
+        *file << "| " << it.first[s - 1] << "| " << *(it.second) << "\n";
       }
     }
   }
-
 }
 
 // load a .path file
@@ -1378,7 +1500,7 @@ void KleeHandler::getKTestFilesInDir(std::string directoryPath,
   llvm::sys::fs::directory_iterator i(directoryPath, ec), e;
   for (; i != e && !ec; i.increment(ec)) {
     auto f = i->path();
-    if (f.size() >= 6 && f.substr(f.size()-6,f.size()) == ".ktest") {
+    if (f.size() >= 6 && f.substr(f.size() - 6, f.size()) == ".ktest") {
       results.push_back(f);
     }
   }
@@ -1607,7 +1729,8 @@ void CallTree::dumpCallPrefixes(
   std::vector<std::vector<CallPathTip *>>::iterator ti = tipCalls.begin(),
                                                     te = tipCalls.end();
   for (; ti != te; ++ti) {
-    std::unique_ptr<llvm::raw_ostream> file = fileOpener->openNextCallPathPrefixFile();
+    std::unique_ptr<llvm::raw_ostream> file =
+        fileOpener->openNextCallPathPrefixFile();
     std::list<CallInfo>::iterator ai = accumulated_prefix.begin(),
                                   ae = accumulated_prefix.end();
     for (; ai != ae; ++ai) {
@@ -1699,7 +1822,8 @@ void CallTree::dumpCallPrefixesSExpr(std::list<CallInfo> accumulated_prefix,
   std::vector<std::vector<CallPathTip *>>::iterator ti = tipCalls.begin(),
                                                     te = tipCalls.end();
   for (; ti != te; ++ti) {
-    std::unique_ptr<llvm::raw_ostream> file = fileOpener->openNextCallPathPrefixFile();
+    std::unique_ptr<llvm::raw_ostream> file =
+        fileOpener->openNextCallPathPrefixFile();
     std::list<CallInfo>::iterator ai = accumulated_prefix.begin(),
                                   ae = accumulated_prefix.end();
     *file << "((history (\n";
@@ -1858,110 +1982,53 @@ preparePOSIX(std::vector<std::unique_ptr<llvm::Module>> &loadedModules,
 
 // Symbols we explicitly support
 static const char *modelledExternals[] = {
-  "_ZTVN10__cxxabiv117__class_type_infoE",
-  "_ZTVN10__cxxabiv120__si_class_type_infoE",
-  "_ZTVN10__cxxabiv121__vmi_class_type_infoE",
+    "_ZTVN10__cxxabiv117__class_type_infoE",
+    "_ZTVN10__cxxabiv120__si_class_type_infoE",
+    "_ZTVN10__cxxabiv121__vmi_class_type_infoE",
 
-  // special functions
-  "_stdio_init", 
-  "_assert",
-  "__assert_fail",
-  "__assert_rtn",
-  "__errno_location",
-  "__error",
-  "calloc",
-  "_exit",
-  "exit",
-  "free",
-  "abort",
-  "klee_abort",
-  "klee_assume",
-  "klee_allow_access",
-  "klee_check_memory_access",
-  "klee_define_fixed_object",
-  "klee_forbid_access", 
-  "klee_get_errno",
-  "klee_get_valuef",
-  "klee_get_valued",
-  "klee_get_valuel",
-  "klee_get_valuell",
-  "klee_get_value_i32",
-  "klee_get_value_i64",
-  "klee_get_obj_size",
-  "klee_induce_invariants",
-  "klee_intercept_reads",
-  "klee_intercept_writes",
-  "klee_is_symbolic",
-  "klee_make_symbolic",
-  "klee_mark_global",
-  "klee_open_merge",
-  "klee_close_merge",
-  "klee_prefer_cex",
-  "klee_posix_prefer_cex",
-  "klee_print_expr",
-  "klee_print_range",
-  "klee_report_error",
-  "klee_set_forking",
-  "klee_silent_exit",
-  "klee_warning",
-  "klee_warning_once",
-  "klee_alias_function",
-  "klee_alias_function_regex", 
-  "klee_alias_undo",
-  "klee_stack_trace",
+    // special functions
+    "_stdio_init", "_assert", "__assert_fail", "__assert_rtn",
+    "__errno_location", "__error", "calloc", "_exit", "exit", "free", "abort",
+    "klee_abort", "klee_assume", "klee_allow_access",
+    "klee_check_memory_access", "klee_define_fixed_object",
+    "klee_forbid_access", "klee_get_errno", "klee_get_valuef",
+    "klee_get_valued", "klee_get_valuel", "klee_get_valuell",
+    "klee_get_value_i32", "klee_get_value_i64", "klee_get_obj_size",
+    "klee_induce_invariants", "klee_intercept_reads", "klee_intercept_writes",
+    "klee_is_symbolic", "klee_make_symbolic", "klee_mark_global",
+    "klee_open_merge", "klee_close_merge", "klee_prefer_cex",
+    "klee_posix_prefer_cex", "klee_print_expr", "klee_print_range",
+    "klee_report_error", "klee_set_forking", "klee_silent_exit", "klee_warning",
+    "klee_warning_once", "klee_alias_function", "klee_alias_function_regex",
+    "klee_alias_undo", "klee_stack_trace",
 
-  /* tracing functions */
-  "klee_trace_extra_val_u32", 
-  "klee_trace_extra_ptr",
-  "klee_trace_extra_ptr_field",
-  "klee_trace_extra_ptr_nested_field",
-  "klee_trace_extra_ptr_nested_nested_field", 
-  
-  "klee_trace_param_u16",
-  "klee_trace_param_u32",
-  "klee_trace_param_i32",
-  "klee_trace_param_u64",
-  "klee_trace_param_i64",
+    /* tracing functions */
+    "klee_trace_extra_val_u32", "klee_trace_extra_ptr",
+    "klee_trace_extra_ptr_field", "klee_trace_extra_ptr_nested_field",
+    "klee_trace_extra_ptr_nested_nested_field",
 
-  "klee_trace_param_ptr",
-  "klee_trace_param_ptr_field",
-  "klee_trace_param_ptr_directed",
-  "klee_trace_param_ptr_field_directed",
-  "klee_trace_param_ptr_field_just_ptr",
-  "klee_trace_param_ptr_nested_field",
-  "klee_trace_param_ptr_nested_field_directed",
+    "klee_trace_param_u16", "klee_trace_param_u32", "klee_trace_param_i32",
+    "klee_trace_param_u64", "klee_trace_param_i64",
 
-  "klee_trace_param_fptr", 
-  "klee_trace_param_just_ptr",
-  "klee_trace_param_tagged_ptr",
+    "klee_trace_param_ptr", "klee_trace_param_ptr_field",
+    "klee_trace_param_ptr_directed", "klee_trace_param_ptr_field_directed",
+    "klee_trace_param_ptr_field_just_ptr", "klee_trace_param_ptr_nested_field",
+    "klee_trace_param_ptr_nested_field_directed",
 
-  "klee_trace_ret",
-  "klee_trace_ret_ptr",
-  "klee_trace_ret_ptr_field", 
+    "klee_trace_param_fptr", "klee_trace_param_just_ptr",
+    "klee_trace_param_tagged_ptr",
 
-  "klee_map_symbol_names",
+    "klee_trace_ret", "klee_trace_ret_ptr", "klee_trace_ret_ptr_field",
 
-  /* tracing functions end */
+    "klee_map_symbol_names",
 
-  "llvm.dbg.declare",
-  "llvm.dbg.value",
-  "llvm.va_start",
-  "llvm.va_end",
-  "malloc",
-  "realloc",
-  "memalign",
-  "_ZdaPv",
-  "_ZdlPv",
-  "_Znaj",
-  "_Znwj",
-  "_Znam",
-  "_Znwm",
-  "__ubsan_handle_add_overflow",
-  "__ubsan_handle_sub_overflow",
-  "__ubsan_handle_mul_overflow",
-  "__ubsan_handle_divrem_overflow",
-  "__ubsan_handle_negate_overflow"
-};
+    /* tracing functions end */
+
+    "llvm.dbg.declare", "llvm.dbg.value", "llvm.va_start", "llvm.va_end",
+    "malloc", "realloc", "memalign", "_ZdaPv", "_ZdlPv", "_Znaj", "_Znwj",
+    "_Znam", "_Znwm", "__ubsan_handle_add_overflow",
+    "__ubsan_handle_sub_overflow", "__ubsan_handle_mul_overflow",
+    "__ubsan_handle_divrem_overflow", "__ubsan_handle_negate_overflow"};
 
 // Symbols we aren't going to warn about
 static const char *dontCareExternals[] = {
@@ -2014,25 +2081,23 @@ static const char *dontCareExternals[] = {
 
 // Extra symbols we aren't going to warn about with klee-libc
 static const char *dontCareKlee[] = {
-  "__ctype_b_loc",
-  "__ctype_get_mb_cur_max",
+    "__ctype_b_loc",
+    "__ctype_get_mb_cur_max",
 
-  // I/O system calls
-  "open",
-  "write",
-  "read",
-  "close",
+    // I/O system calls
+    "open",
+    "write",
+    "read",
+    "close",
 };
 
 // Extra symbols we aren't going to warn about with uclibc
 static const char *dontCareUclibc[] = {
     "__dso_handle",
 
-  // Don't warn about these since we explicitly commented them out of
-  // uclibc.
-  "printf",
-  "vprintf"
-};
+    // Don't warn about these since we explicitly commented them out of
+    // uclibc.
+    "printf", "vprintf"};
 
 // Symbols we consider unsafe
 static const char *unsafeExternals[] = {
@@ -2043,7 +2108,7 @@ static const char *unsafeExternals[] = {
     "kill",  // mmmhmmm
 };
 
-#define NELEMS(array) (sizeof(array)/sizeof(array[0]))
+#define NELEMS(array) (sizeof(array) / sizeof(array[0]))
 void externalsAndGlobalsCheck(const llvm::Module *m) {
   std::map<std::string, bool> externals;
   std::set<std::string> modelled(modelledExternals,
@@ -2055,11 +2120,10 @@ void externalsAndGlobalsCheck(const llvm::Module *m) {
 
   switch (Libc) {
   case LibcType::KleeLibc:
-    dontCare.insert(dontCareKlee, dontCareKlee+NELEMS(dontCareKlee));
+    dontCare.insert(dontCareKlee, dontCareKlee + NELEMS(dontCareKlee));
     break;
   case LibcType::UcLibc:
-    dontCare.insert(dontCareUclibc,
-                    dontCareUclibc+NELEMS(dontCareUclibc));
+    dontCare.insert(dontCareUclibc, dontCareUclibc + NELEMS(dontCareUclibc));
     break;
   case LibcType::FreeStandingLibc: /* silence compiler warning */
     break;
@@ -2086,8 +2150,8 @@ void externalsAndGlobalsCheck(const llvm::Module *m) {
     }
   }
 
-  for (Module::const_global_iterator
-         it = m->global_begin(), ie = m->global_end();
+  for (Module::const_global_iterator it = m->global_begin(),
+                                     ie = m->global_end();
        it != ie; ++it)
     if (it->isDeclaration() && !it->use_empty())
       externals.insert(std::make_pair(it->getName(), true));
@@ -2172,9 +2236,8 @@ linkWithUclibc(StringRef libDir,
   klee_error("invalid libc, no uclibc support!\n");
 }
 #else
-static void replaceOrRenameFunction(llvm::Module *module,
-		const char *old_name, const char *new_name)
-{
+static void replaceOrRenameFunction(llvm::Module *module, const char *old_name,
+                                    const char *new_name) {
   Function *new_function, *old_function;
   new_function = module->getFunction(new_name);
   old_function = module->getFunction(old_name);
@@ -2238,12 +2301,12 @@ createLibCWrapper(std::vector<std::unique_ptr<llvm::Module>> &modules,
   BasicBlock *bb = BasicBlock::Create(ctx, "entry", stub);
   llvm::IRBuilder<> Builder(bb);
 
-  std::vector<llvm::Value*> args;
+  std::vector<llvm::Value *> args;
   args.push_back(
       llvm::ConstantExpr::getBitCast(inModuleRefernce, ft->getParamType(0)));
   args.push_back(&*(stub->arg_begin())); // argc
   auto arg_it = stub->arg_begin();
-  args.push_back(&*(++arg_it)); // argv
+  args.push_back(&*(++arg_it));                                // argv
   args.push_back(Constant::getNullValue(ft->getParamType(3))); // app_init
   args.push_back(Constant::getNullValue(ft->getParamType(4))); // app_fini
   args.push_back(Constant::getNullValue(ft->getParamType(5))); // rtld_fini
@@ -2352,7 +2415,6 @@ int main(int argc, char **argv, char **envp) {
             // so try and give the process extra time to clean up.
             auto max = std::max(time::seconds(15), maxTime / 10);
             nextStep = time::getWallTime() + max;
-
           }
         }
       }
@@ -2410,8 +2472,8 @@ int main(int argc, char **argv, char **envp) {
 #else
     SmallString<128> LibcxxBC(Opts.LibraryDir);
     llvm::sys::path::append(LibcxxBC, KLEE_LIBCXX_BC_NAME);
-    if (!klee::loadFile(LibcxxBC.c_str(), mainModule->getContext(), loadedModules,
-                        errorMsg))
+    if (!klee::loadFile(LibcxxBC.c_str(), mainModule->getContext(),
+                        loadedModules, errorMsg))
       klee_error("error loading free standing support '%s': %s",
                  LibcxxBC.c_str(), errorMsg.c_str());
     klee_message("NOTE: Using libcxx : %s", LibcxxBC.c_str());
@@ -2448,7 +2510,6 @@ int main(int argc, char **argv, char **envp) {
                         errorMsg))
       klee_error("error loading free standing support '%s': %s",
                  library.c_str(), errorMsg.c_str());
-
   }
 
   // FIXME: Change me to std types.
@@ -2500,8 +2561,8 @@ int main(int argc, char **argv, char **envp) {
   IOpts.MakeConcreteSymbolic = MakeConcreteSymbolic;
   IOpts.CondoneUndeclaredHavocs = CondoneUndeclaredHavocs;
   KleeHandler *handler = new KleeHandler(pArgc, pArgv);
-  Interpreter *interpreter =
-    theInterpreter = Interpreter::create(ctx, IOpts, handler);
+  Interpreter *interpreter = theInterpreter =
+      Interpreter::create(ctx, IOpts, handler);
   assert(interpreter);
 
   handler->setInterpreter(interpreter);
@@ -2526,13 +2587,12 @@ int main(int argc, char **argv, char **envp) {
     interpreter->setReplayPath(&replayPath);
   }
 
-
   auto startTime = std::time(nullptr);
   { // output clock info and start time
     std::stringstream startInfo;
-    startInfo << time::getClockInfo()
-              << "Started: "
-              << std::put_time(std::localtime(&startTime), "%Y-%m-%d %H:%M:%S") << '\n';
+    startInfo << time::getClockInfo() << "Started: "
+              << std::put_time(std::localtime(&startTime), "%Y-%m-%d %H:%M:%S")
+              << '\n';
     handler->getInfoStream() << startInfo.str();
     handler->getInfoStream().flush();
   }
@@ -2637,7 +2697,7 @@ int main(int argc, char **argv, char **envp) {
     if (DumpConstraintTree)
       handler->dumpConstraintTree();
 
-    handler->dumpReusedSymbols();  
+    handler->dumpReusedSymbols();
 
     while (!seeds.empty()) {
       kTest_free(seeds.back());
@@ -2649,18 +2709,15 @@ int main(int argc, char **argv, char **envp) {
   { // output end and elapsed time
     std::uint32_t h;
     std::uint8_t m, s;
-    std::tie(h,m,s) = time::seconds(endTime - startTime).toHMS();
+    std::tie(h, m, s) = time::seconds(endTime - startTime).toHMS();
     std::stringstream endInfo;
     endInfo << "Finished: "
-            << std::put_time(std::localtime(&endTime), "%Y-%m-%d %H:%M:%S") << '\n'
-            << "Elapsed: "
-            << std::setfill('0') << std::setw(2) << h
-            << ':'
-            << std::setfill('0') << std::setw(2) << +m
-            << ':'
-            << std::setfill('0') << std::setw(2) << +s
-            << '\n';
-            handler->getInfoStream() << endInfo.str();
+            << std::put_time(std::localtime(&endTime), "%Y-%m-%d %H:%M:%S")
+            << '\n'
+            << "Elapsed: " << std::setfill('0') << std::setw(2) << h << ':'
+            << std::setfill('0') << std::setw(2) << +m << ':'
+            << std::setfill('0') << std::setw(2) << +s << '\n';
+    handler->getInfoStream() << endInfo.str();
     handler->getInfoStream().flush();
   }
 
