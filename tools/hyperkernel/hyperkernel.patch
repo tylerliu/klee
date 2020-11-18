@@ -1,0 +1,102 @@
+diff --git a/Makefile b/Makefile
+index 3963c0c..19aafa7 100644
+--- a/Makefile
++++ b/Makefile
+@@ -35,7 +35,7 @@ QUIET_RANLIB  = $(Q:@=@echo    '     RANLIB   '$@;)
+ CFLAGS       += -fno-PIE
+ CFLAGS       += -ffreestanding -MD -MP
+ CFLAGS       += -Wall
+-CFLAGS       += -g
++CFLAGS       += -g -O0 -Xclang -disable-O0-optnone
+ CFLAGS       += -mno-red-zone
+ CFLAGS       += -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -mno-avx
+ CFLAGS       += -DCOMMIT_HASH=$(shell git rev-parse --short --verify HEAD)
+diff --git a/hv6/Makefrag b/hv6/Makefrag
+index 1f666d7..927a017 100644
+--- a/hv6/Makefrag
++++ b/hv6/Makefrag
+@@ -68,6 +68,9 @@ $(O)/hv6/trap_entry.o          \
+ $(O)/hv6/user/lib/trap_entry.o \
+ $(O)/hv6/user/lib/usys.o : $(O)/include/uapi/machine/trap_assym.h
+ 
++HV6_KERNEL_SRCS += hv6/_globals.c
++HV6_LLS += $(addprefix $(O)/, $(subst .c,.ll,$(filter %.c,$(HV6_KERNEL_SRCS))))
++
+ HV6_KERNEL_OBJS := $(addprefix $(O)/,$(patsubst %.c,%.o,$(patsubst %.S,%.o,$(HV6_KERNEL_SRCS))))
+ 
+ ifeq ($(USE_LL),1)
+diff --git a/hv6/main.c b/hv6/main.c
+index a5d9f68..e976197 100644
+--- a/hv6/main.c
++++ b/hv6/main.c
+@@ -33,9 +33,9 @@ static void arch_user_init(pid_t pid);
+ static void print_config(void);
+ static void print_version(void);
+ 
+-void main(void)
++void hv6_main(void)
+ {
+-    arch_init();
++//    arch_init();
+     vm_init();
+     user_init(INITPID);
+ 
+@@ -43,8 +43,8 @@ void main(void)
+     print_version();
+     check_invariants();
+ 
+-    run_current();
+-    panic(NULL);
++//    run_current();
++//    panic(NULL);
+ }
+ 
+ static void print_config(void)
+@@ -153,8 +153,8 @@ static void user_init(pid_t pid)
+     assert(r == 0, "alloc_proc");
+ 
+     /* load & allocate pages for init & ulib */
+-    entry = load_elf(pid, _binary_init_start);
+-    load_elf(pid, _binary_ulib_start);
++//    entry = load_elf(pid, _binary_init_start);
++//    load_elf(pid, _binary_ulib_start);
+ 
+     /* map page_desc_table as read-only */
+     n = bytes_to_pages(NPAGE * sizeof(struct page_desc));
+@@ -175,8 +175,8 @@ static void user_init(pid_t pid)
+ #endif
+ 
+     phvm = get_page(hvm);
+-    hvm_user_init(phvm, entry);
+-    hvm_set_pid(phvm, pid);
++//    hvm_user_init(phvm, entry);
++//    hvm_set_pid(phvm, pid);
+     get_proc(pid)->state = PROC_RUNNING;
+     FREELIST_INIT(proc_table, ready, pid);
+ }
+diff --git a/hv6/vm.c b/hv6/vm.c
+index 1898429..f6b3edc 100644
+--- a/hv6/vm.c
++++ b/hv6/vm.c
+@@ -71,7 +71,7 @@ int map_page(pid_t pid, pn_t from_pn, size_t index, pn_t pfn, pte_t perm,
+ 
+     /* update the page table */
+     mmio_write64(&entries[index], (pfn << PTE_PFN_SHIFT) | perm);
+-    hvm_invalidate_tlb(pid);
++//    hvm_invalidate_tlb(pid);
+     return 0;
+ }
+ 
+diff --git a/include/uapi/cdefs.h b/include/uapi/cdefs.h
+index c35dfa8..c8e20a0 100644
+--- a/include/uapi/cdefs.h
++++ b/include/uapi/cdefs.h
+@@ -204,7 +204,7 @@ typedef int64_t pid_t;
+ #define pr_err(fmt, ...) syslog(LOG_ERR, fmt, ##__VA_ARGS__)
+ #define pr_warn(fmt, ...) syslog(LOG_WARNING, fmt, ##__VA_ARGS__)
+ #define pr_notice(fmt, ...) syslog(LOG_NOTICE, fmt, ##__VA_ARGS__)
+-#define pr_info(fmt, ...) syslog(LOG_INFO, fmt, ##__VA_ARGS__)
++#define pr_info(fmt, ...)
+ #define pr_debug(fmt, ...) syslog(LOG_DEBUG, fmt, ##__VA_ARGS__)
+ 
+ #define KLOG_NR_LINES  SZ_1K
