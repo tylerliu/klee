@@ -45,7 +45,13 @@ parallel "python $py_scripts_dir/formal_cache.py {} \$(basename {} .packet.uncla
 
 echo Putting it together 
 python3 $py_scripts_dir/stateless_stats.py ./ comp_insns num_accesses num_hits num_misses trace_nos
-python3 $py_scripts_dir/stateless_perf.py  comp_insns num_accesses num_hits num_misses trace_nos $output 
+python3 $py_scripts_dir/stateless_perf.py  comp_insns num_accesses num_hits num_misses trace_nos x86_metrics 
+
+#traces_dir needs to contain files with the name *.ll.demarcated
+parallel "python $py_scripts_dir/stateless_perf_llvm.py {} \$(basename {} .ll.demarcated).llvm_metrics" ::: *.ll.demarcated
+
+#Combine llvm metrics with x86_metrics
+python3 $py_scripts_dir/combine_perf_llvm.py llvm_metrics x86_metrics $output
 
 rm -f $traces_dir/*.packet.stateless_mem_trace \
       $traces_dir/*.packet.stateless_mem_trace.classified

@@ -15,7 +15,7 @@ op_file = sys.argv[3]
 
 stateless_perf = {}
 stateful_perf = {}
-metrics = ["instruction count", "memory instructions", "execution cycles"]
+metrics = ["instruction count", "memory instructions", "execution cycles", "llvm instruction count", "llvm memory instructions"]
 
 
 def formula_priority_fn(x):
