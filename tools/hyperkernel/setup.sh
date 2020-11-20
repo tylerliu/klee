@@ -26,7 +26,7 @@ cd klee/build
   # not in public LLVM
   sed -i 's/obj->allocSite->getType()->dump();//' ../lib/Core/ExecutionState.cpp
   # not sure why cmake cannot figure out the need for -ldl ... adding it to CMAKE_CXX_FLAGS puts it too early in the line, so let's just patch
-  sed -i 's/-o ../../bin/stitch-perf-contract/-o ../../bin/stitch-perf-contract -ldl' ./tools/stitch-perf-contract/CMakeFiles/stitch-perf-contract.dir/link.txt
+  sed -i 's|-o ../../bin/stitch-perf-contract|-o ../../bin/stitch-perf-contract -ldl|' ./tools/stitch-perf-contract/CMakeFiles/stitch-perf-contract.dir/link.txt
   make -j $(nproc)
 cd -
 
