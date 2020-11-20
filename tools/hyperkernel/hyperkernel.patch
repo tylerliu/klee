@@ -12,28 +12,29 @@ index 3963c0c..19aafa7 100644
  CFLAGS       += -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -mno-avx
  CFLAGS       += -DCOMMIT_HASH=$(shell git rev-parse --short --verify HEAD)
 diff --git a/hv6/Makefrag b/hv6/Makefrag
-index 1f666d7..927a017 100644
+index 1f666d7..ab97a67 100644
 --- a/hv6/Makefrag
 +++ b/hv6/Makefrag
-@@ -68,6 +68,9 @@ $(O)/hv6/trap_entry.o          \
+@@ -68,6 +68,8 @@ $(O)/hv6/trap_entry.o          \
  $(O)/hv6/user/lib/trap_entry.o \
  $(O)/hv6/user/lib/usys.o : $(O)/include/uapi/machine/trap_assym.h
  
-+HV6_KERNEL_SRCS += hv6/_globals.c
 +HV6_LLS += $(addprefix $(O)/, $(subst .c,.ll,$(filter %.c,$(HV6_KERNEL_SRCS))))
 +
  HV6_KERNEL_OBJS := $(addprefix $(O)/,$(patsubst %.c,%.o,$(patsubst %.S,%.o,$(HV6_KERNEL_SRCS))))
  
  ifeq ($(USE_LL),1)
 diff --git a/hv6/main.c b/hv6/main.c
-index a5d9f68..e976197 100644
+index a5d9f68..b38d507 100644
 --- a/hv6/main.c
 +++ b/hv6/main.c
-@@ -33,9 +33,9 @@ static void arch_user_init(pid_t pid);
+@@ -33,9 +33,11 @@ static void arch_user_init(pid_t pid);
  static void print_config(void);
  static void print_version(void);
  
 -void main(void)
++struct multiboot_info *multiboot_info;
++
 +void hv6_main(void)
  {
 -    arch_init();
@@ -41,7 +42,7 @@ index a5d9f68..e976197 100644
      vm_init();
      user_init(INITPID);
  
-@@ -43,8 +43,8 @@ void main(void)
+@@ -43,8 +45,8 @@ void main(void)
      print_version();
      check_invariants();
  
@@ -52,7 +53,7 @@ index a5d9f68..e976197 100644
  }
  
  static void print_config(void)
-@@ -153,8 +153,8 @@ static void user_init(pid_t pid)
+@@ -153,8 +155,8 @@ static void user_init(pid_t pid)
      assert(r == 0, "alloc_proc");
  
      /* load & allocate pages for init & ulib */
@@ -63,7 +64,7 @@ index a5d9f68..e976197 100644
  
      /* map page_desc_table as read-only */
      n = bytes_to_pages(NPAGE * sizeof(struct page_desc));
-@@ -175,8 +175,8 @@ static void user_init(pid_t pid)
+@@ -175,8 +177,8 @@ static void user_init(pid_t pid)
  #endif
  
      phvm = get_page(hvm);

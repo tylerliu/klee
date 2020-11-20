@@ -4,14 +4,21 @@
 
 CLANG_VER=8
 
+if [ "$(which sudo)" = '' ]; then
+  # e.g. docker
+  apt-get update && apt-get install -y sudo
+else
+  sudo apt-get update
+fi
+
 # install clang and LLVM (g++ needed for clang++ to actually work)
 sudo apt-get install -y clang-$CLANG_VER llvm-$CLANG_VER-dev g++-9
 
 # install klee (and dependencies + Z3 as solver; note that zlib1g-dev is not in the official instructions :( also removed python cause python2 is dead anyway )
-sudo apt-get install -y libz3-dev build-essential curl libcap-dev cmake libncurses5-dev unzip libtcmalloc-minimal4 libgoogle-perftools-dev libsqlite3-dev doxygen zlib1g-dev
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y libz3-dev build-essential curl libcap-dev cmake libncurses5-dev unzip libtcmalloc-minimal4 libgoogle-perftools-dev libsqlite3-dev doxygen zlib1g-dev
 if [ ! -d klee ]; then
   # I guess if you are running this script then you already have it? but maybe not in the right location so whatevs
-  git clone --branch bolt-intrinsics https://github.com/bolt-perf-contracts/klee
+  git clone --branch hyperkernel https://github.com/bolt-perf-contracts/klee
 fi
 mkdir klee/build
 cd klee/build
