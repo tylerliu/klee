@@ -1265,75 +1265,74 @@ void KleeHandler::dumpCallPathInstructions(const ExecutionState &state,
   *file << "Call Stack | Current Function | Instruction\n";
 
   // Initialize the function lists
-  std::vector<std::string> stateful_fns = {
-      "dchain_allocate",
-      "dchain_allocate_new_index",
-      "dchain_rejuvenate_index",
-      "dchain_expire_one_index",
-      "dmap_allocate",
-      "dmap_get_a",
-      "dmap_get_b",
-      "dmap_put",
-      "dmap_erase",
-      "dmap_get_value",
-      "dmap_size",
-      "expire_items",
-      "expire_items_single_map",
-      "map_impl_init",
-      "map_impl_get",
-      "map_impl_put",
-      "map_impl_erase",
-      "map_allocate",
-      "map_get",
-      "map_put",
-      "map_erase",
-      "map_size",
-      "dchain_make_space",
-      "dchain_reset",
-      "map_set_layout",
-      "map_entry_condition",
-      "map_set_entry_condition",
-      "map_reset",
-      "map_increase_occupancy",
-      "map_decrease_occupancy",
-      "dmap_set_layout",
-      "entry_condition",
-      "dmap_set_entry_condition",
-      "dmap_reset",
-      "dmap_increase_occupancy",
-      "dmap_decrease_occupancy",
-      "dmap_lowerbound_on_occupancy",
-      "dmap_occupancy_p",
-      "vector_allocate",
-      "vector_borrow",
-      "vector_return",
-      "vector_set_layout",
-      "vector_reset",
-      "handle_packet_timestamp",
-      "lpm_lookup",
-      "lpm_init",
-      "memcpy",
-      "trace_reset_buffers",
-      "map_get_1",
-      "map_get_2",
-      "map2_get_1",
-      "map2_put",
-      "map2_erase",
-      "dchain2_allocate",
-      "dchain2_allocate_new_index",
-      "dchain2_rejuvenate_index",
-      "dchain2_expire_one_index",
-      "lb_find_preferred_available_backend",
-      "dchain_is_index_allocated",
-      "dchain2_is_index_allocated",
-      "dchain2_make_space",
-      "dchain2_reset",
-      "map2_set_layout",
-      "map2_entry_condition",
-      "map2_set_entry_condition",
-      "map2_reset",
-      "map2_increase_occupancy",
-      "map2_decrease_occupancy"};
+  std::vector<std::string> libvig_fns = {"dchain_allocate",
+                                         "dchain_allocate_new_index",
+                                         "dchain_rejuvenate_index",
+                                         "dchain_expire_one_index",
+                                         "dmap_allocate",
+                                         "dmap_get_a",
+                                         "dmap_get_b",
+                                         "dmap_put",
+                                         "dmap_erase",
+                                         "dmap_get_value",
+                                         "dmap_size",
+                                         "expire_items",
+                                         "expire_items_single_map",
+                                         "map_impl_init",
+                                         "map_impl_get",
+                                         "map_impl_put",
+                                         "map_impl_erase",
+                                         "map_allocate",
+                                         "map_get",
+                                         "map_put",
+                                         "map_erase",
+                                         "map_size",
+                                         "dchain_make_space",
+                                         "dchain_reset",
+                                         "map_set_layout",
+                                         "map_entry_condition",
+                                         "map_set_entry_condition",
+                                         "map_reset",
+                                         "map_increase_occupancy",
+                                         "map_decrease_occupancy",
+                                         "dmap_set_layout",
+                                         "entry_condition",
+                                         "dmap_set_entry_condition",
+                                         "dmap_reset",
+                                         "dmap_increase_occupancy",
+                                         "dmap_decrease_occupancy",
+                                         "dmap_lowerbound_on_occupancy",
+                                         "dmap_occupancy_p",
+                                         "vector_allocate",
+                                         "vector_borrow",
+                                         "vector_return",
+                                         "vector_set_layout",
+                                         "vector_reset",
+                                         "handle_packet_timestamp",
+                                         "lpm_lookup",
+                                         "lpm_init",
+                                         "memcpy",
+                                         "trace_reset_buffers",
+                                         "map_get_1",
+                                         "map_get_2",
+                                         "map2_get_1",
+                                         "map2_put",
+                                         "map2_erase",
+                                         "dchain2_allocate",
+                                         "dchain2_allocate_new_index",
+                                         "dchain2_rejuvenate_index",
+                                         "dchain2_expire_one_index",
+                                         "lb_find_preferred_available_backend",
+                                         "dchain_is_index_allocated",
+                                         "dchain2_is_index_allocated",
+                                         "dchain2_make_space",
+                                         "dchain2_reset",
+                                         "map2_set_layout",
+                                         "map2_entry_condition",
+                                         "map2_set_entry_condition",
+                                         "map2_reset",
+                                         "map2_increase_occupancy",
+                                         "map2_decrease_occupancy"};
   std::vector<std::string> dpdk_fns = {"rte_reset",
                                        "rte_arch_bswap16",
                                        "rte_arch_bswap32",
@@ -1413,11 +1412,15 @@ void KleeHandler::dumpCallPathInstructions(const ExecutionState &state,
                                         "exit",
                                         "__uClibc_fini",
                                         "_stdio_term"};
+
+  std::vector<std::string> ebpf_fns = {"bpf_map_lookup_elem",
+                                       "bpf_map_update_elem", "bpf_csum_diff",
+                                       "bpf_xdp_adjust_head"};
   std::regex symbol_re("klee*");
   std::regex symbol2_re("_exit@plt*");
 
-  std::vector<std::vector<std::string>> function_list = {stateful_fns, dpdk_fns,
-                                                         time_fns, verif_fns};
+  std::vector<std::vector<std::string>> function_list = {
+      libvig_fns, dpdk_fns, time_fns, verif_fns, ebpf_fns};
   int currently_demarcated = 0;
   std::string currently_demarcated_fn = "";
 
@@ -1447,7 +1450,8 @@ void KleeHandler::dumpCallPathInstructions(const ExecutionState &state,
     else if (currently_demarcated == 0 && check == 1) {
       check = 0;
       int found = 0;
-      for (int list_counter = 0; list_counter <= 3; list_counter++) {
+      for (uint list_counter = 0; list_counter < function_list.size();
+           list_counter++) {
         if (std::find(function_list[list_counter].begin(),
                       function_list[list_counter].end(),
                       current_fn_name) != function_list[list_counter].end()) {
@@ -1868,14 +1872,15 @@ void ConstraintTree::addTest(int id, ExecutionState state) {
       bool success = solver->mayBeTrue(sat_query, result);
       assert(success);
       if (!result) {
-        overlap_depth.insert({test_pair, i});
+        overlap_depth.insert({test_pair, i + 1});
         branch.insert({test_pair, std::vector<ref<Expr>>()});
         branch[test_pair].push_back(*cit);
         break;
       }
     }
-    klee::ref<Expr> branch1 = *cit;
     assert(i < it.second.size() && "Trying to add duplicate test");
+    klee::ref<Expr> branch1 = *cit;
+
     uint depth1 = i;
 
     /* Now iterate the other way */
@@ -1901,19 +1906,19 @@ void ConstraintTree::addTest(int id, ExecutionState state) {
     assert(!result && "Branching constraints are not mutually unsat");
     branch[test_pair].push_back(*cit);
   }
-  overlap_depth.insert({std::minmax(id, id), state.constraints.size()});
+  overlap_depth.insert({std::minmax(id, id), state.constraints.size() + 1});
   seen_tests.insert({id, state.constraints});
 }
 
 void ConstraintTree::dumpConstraintTree(llvm::raw_ostream *tree_file,
                                         llvm::raw_ostream *constraints_file) {
   for (auto it : overlap_depth) {
-    *tree_file << it.first.first << "," << it.first.second << "," << it.second
+    *tree_file << it.first.first << "|" << it.first.second << "|" << it.second
                << "\n";
   }
   for (auto it : branch) {
     for (auto expr_it : it.second) {
-      *constraints_file << it.first.first << "," << it.first.second << ",";
+      *constraints_file << it.first.first << "|" << it.first.second << "|";
       expr_it->print(*constraints_file);
       *constraints_file << "\n";
     }

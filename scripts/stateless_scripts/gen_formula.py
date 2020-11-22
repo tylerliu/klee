@@ -12,10 +12,10 @@ import os
 stateful_file = sys.argv[1]
 stateless_file = sys.argv[2]
 op_file = sys.argv[3]
+op_metrics = sys.argv[4]
 
 stateless_perf = {}
 stateful_perf = {}
-metrics = ["instruction count", "memory instructions", "execution cycles", "llvm instruction count", "llvm memory instructions"]
 
 
 def formula_priority_fn(x):
@@ -27,6 +27,14 @@ def formula_priority_fn(x):
 
 
 def main():
+
+    if(op_metrics == "x86"):
+        metrics = ["instruction count",
+                   "memory instructions", "execution cycles"]
+    else:
+        metrics = ["llvm instruction count",
+                   "llvm memory instructions"]
+
     with open(stateless_file, 'r') as sless_file:
         for line in sless_file:
             line = line.rstrip()

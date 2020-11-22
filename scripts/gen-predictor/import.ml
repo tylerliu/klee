@@ -730,6 +730,6 @@ let parse_branches file =
         let perf = int_of_string perf_raw in
         let cond = List.map cond_str ~f:(fun str -> (parse_condition str).v) in
         {cond;perf}
-      | _ -> failwith (br ^ " is a malformed branch speciOK ication."))
+      | _ -> failwith (br ^ " is a malformed branch specification."))
   in
   branches

@@ -34,6 +34,7 @@ constraint_node = sys.argv[10]
 expected_perf = (max_perf+min_perf)/2
 perf_resolution = (max_perf-min_perf)/2
 
+
 class Constraint:
 
     def __init__(self, subject=None, sind=None):
@@ -400,19 +401,19 @@ def pretty_print_tree(root):
     if(tree_type == "neg-tree"):
         file_name = "%s.txt" % (tree_type)
     else:
-        file_name = "%s-%d.txt" % (tree_type,perf_resolution)
+        file_name = "%s-%d.txt" % (tree_type, perf_resolution)
     nodes = list(node.name for node in PostOrderIter(
         tree_root) if node.is_leaf)
     paths = list()
-    for node in nodes:
-        node_path = get_node_path(node, root)
-        paths.append((node, node_path))
-    depth_root = build_path_tree(paths)
-    print_tree(depth_root, file_name)
+    # for node in nodes:
+    #     node_path = get_node_path(node, root)
+    #     paths.append((node, node_path))
+    # depth_root = build_path_tree(paths)
+    print_tree(root, file_name)
     if(tree_type == "neg-tree"):
         # Printing loop PCV violations
         if(len(loop_pcv_violations)):
-            loop_violations_file="%s-loop" %(tree_type)
+            loop_violations_file = "%s-loop" % (tree_type)
             f = open(loop_violations_file, "w")
             for formula in loop_pcv_violations:
                 f.write(formula+"\n")
@@ -441,8 +442,10 @@ def build_path_tree(paths_list):
                 x.is_true == prev_is_true)]
             assert(len(next_node) == 1)
             sub_root = next_node[0]
-            assert(sub_root.constraints.subject ==
-                   "" or sub_root.constraints.subject == c.subject)
+            if(not(sub_root.constraints.subject ==
+                   "" or sub_root.constraints.subject == c.subject)):
+                print(sub_root.constraints.subject)
+                print(c.subject)
             sub_root.constraints.subject = c.subject
             children = list(sub_root.children)
             next_node = [x for x in children if (
@@ -894,16 +897,16 @@ def assign_node_constraints(node):
     assert(node != None and "node not present")
     assert(len(node.children) == 2 and "Leaf node provided")
     children = list(node.children)
-    assert(len(children[0].sub_tests) > 0 and len(children[1].sub_tests))
+    assert(len(children[0].sub_tests) and len(children[1].sub_tests))
     test1 = int(children[0].sub_tests[0].replace("test", ""))
     test2 = int(children[1].sub_tests[0].replace("test", ""))
     constraints = prefix_branch_constraints[test1][test2]
+    assert(len(constraints) == 2)
     # In the above matrix, the first constraint in the list always points to the test with the smaller numeric value.
     # That is a property of how the constraints are dumped from KLEE
     if(test1 > test2):  # Need to re-order the list.
         constraints = [constraints[1], constraints[0]]
     # Now we can be sure that the constraints are ordered by the children
-    assert(len(constraints) > 0)
     if(len(constraints[0]) > len(constraints[1])):
         short_constraint = constraints[1]
         long_constraint = constraints[0]
@@ -978,11 +981,10 @@ def node_identifier_fn(node):
     else:
         if(tree_type == "res-tree"):
             identifier = '%s:%s:%s\n Merge_res = %d' % (
-            node.name, node.id, node.depth, node.merge_res)
+                node.name, node.id, node.depth, node.merge_res)
         else:
             identifier = '%s:%s:%s' % (
-            node.name, node.id, node.depth)
-
+                node.name, node.id, node.depth)
 
     tag = str(node.tags)[1:-1]  # Removes the square brackets around the list
     tag = tag.replace(", ", "\n")
@@ -1040,7 +1042,7 @@ def build_tree(tree_file):
     with open(tree_file, 'r') as f:
         for line in f:
             text = line.rstrip()
-            text = text.split(',')
+            text = text.split('|')
             assert(len(text) == 3)
             text = [int(x) for x in text]
             prefix_match_lengths[text[0]][text[1]] = text[2]
@@ -1050,19 +1052,27 @@ def build_tree(tree_file):
         acc = ""
         for line in f:
             text = line.strip()+"\n"
-            if("," in line):
+            if("|" in line):
                 if(acc != ""):
                     assert(
                         len(prefix_branch_constraints[index1][index2]) < 2)
                     prefix_branch_constraints[index1][index2].append(acc)
                     prefix_branch_constraints[index2][index1].append(acc)
-                text = text.split(",")
+                    if(index1 >= index2):
+                        assert(
+                            len(prefix_branch_constraints[index1][index2]) == 2)
+                text = text.split("|")
                 assert(len(text) == 3)
                 index1 = int(text[0])
                 index2 = int(text[1])
                 acc = text[2]
             else:
                 acc = acc+text
+        # Last line has still not been assigned!
+        assert(acc != "")
+        assert(len(prefix_branch_constraints[index1][index2]) < 2)
+        prefix_branch_constraints[index1][index2].append(acc)
+        prefix_branch_constraints[index2][index1].append(acc)
 
     id_ctr = 0
     for i in range(num_lines):

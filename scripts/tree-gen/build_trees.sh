@@ -52,7 +52,7 @@ TREE_FILE="constraint-tree.txt"
 CONSTRAINT_FILE="constraint-branches.txt"
 
 # METRICS=("instruction count" "memory instructions" "execution cycles")
-METRICS=("instruction count")
+METRICS=("llvm instruction count")
 for METRIC in "${METRICS[@]}"; 
 do 
   METRIC_NAME=$(echo "$METRIC" | sed -e 's/ /_/')
