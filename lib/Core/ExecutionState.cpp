@@ -126,7 +126,8 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       addressSpace(state.addressSpace), loopInProcess(state.loopInProcess),
       analysedLoops(state.analysedLoops), executionStateForLoopInProcess(0),
       constraints(state.constraints),
-
+      callPathInstr(state.callPathInstr), traceCallStack(state.traceCallStack), 
+      stackInstrMap(state.stackInstrMap), isTracing(state.isTracing),
       queryCost(state.queryCost), weight(state.weight), depth(state.depth),
 
       pathOS(state.pathOS), symPathOS(state.symPathOS),
@@ -144,6 +145,7 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       callPath(state.callPath),
       relevantSymbols(state.relevantSymbols), doTrace(state.doTrace),
       condoneUndeclaredHavocs(state.condoneUndeclaredHavocs)
+
 {
   for (unsigned int i=0; i<symbolics.size(); i++)
     symbolics[i].first->refCount++;

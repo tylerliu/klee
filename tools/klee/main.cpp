@@ -1459,6 +1459,8 @@ void KleeHandler::dumpCallPathInstructions(const ExecutionState &state,
           break;
         }
       }
+      if(std::regex_match(current_fn_name, symbol_re) || std::regex_match(current_fn_name, symbol2_re))
+        found = 1;
       if (found) {
         currently_demarcated = 1;
         currently_demarcated_fn = current_fn_name;

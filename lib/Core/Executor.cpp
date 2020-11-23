@@ -1140,13 +1140,7 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
       terminateStateEarly(*falseState, "max-depth exceeded.");
       return StatePair(0, 0);
     }
-    
-    //if other state being returned is not NULL then we should handle instruction tracing data manually
-    falseState->callPathInstr = trueState->callPathInstr;
-    falseState->traceCallStack = trueState->traceCallStack;
-    falseState->isTracing = trueState->isTracing;
-    falseState->stackInstrMap = trueState->stackInstrMap;
-
+  
     return StatePair(trueState, falseState);
   }
 }
@@ -1812,6 +1806,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     std::string f_name = f->getName().str();
     //Instruction tracing state management
     if(!state.traceCallStack.empty()){
+      assert(state.traceCallStack.back() == "IndirectCall" || state.traceCallStack.back() == f_name);
       state.traceCallStack.pop_back();
 
       //Now we check if this was the --end-fn on the call stack
