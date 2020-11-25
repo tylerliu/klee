@@ -70,6 +70,7 @@
 #include <ctime>
 #include <fstream>
 #include <iomanip>
+#include <iostream>
 #include <iterator>
 #include <list>
 #include <regex>
@@ -354,13 +355,15 @@ public:
 };
 
 class ConstraintTree {
-  /* Poorly named, it only stores meta information for the tree */
-  std::map<int, ConstraintManager> seen_tests;
-  std::map<std::pair<int, int>, int> overlap_depth;
+  /* Index of vector is  */
+  std::vector<std::pair<int, ConstraintManager>> seen_tests;
   /* Key is a pair of test-cases. Value is the depth at which they diverge and
    * the constraint on which they diverge */
+  std::map<std::pair<int, int>, int> overlap_depth;
   std::map<std::pair<int, int>, std::vector<ref<Expr>>> branch;
   klee::Solver *solver; /* This should be a global variable */
+  void buildTree();
+
 public:
   ConstraintTree() : seen_tests(), overlap_depth(), branch() {
     solver = klee::createCoreSolver(klee::Z3_SOLVER);
@@ -1860,30 +1863,31 @@ void CallTree::dumpCallPrefixesSExpr(std::list<CallInfo> accumulated_prefix,
 
 void ConstraintTree::addTest(int id, ExecutionState state) {
 
-  for (auto it : seen_tests) {
-    std::pair<int, int> test_pair = std::minmax(id, it.first);
+  if (id) {
+    int last_id = seen_tests.back().first;
+    assert(id == last_id + 1 && "Wrong order of tests to be added");
+  }
 
+  for (auto it : seen_tests) {
     /* Iterating through constraints of existing test */
     ConstraintManager constraints(state.constraints);
     ConstraintManager::constraint_iterator cit = it.second.begin();
     bool result;
+    uint depths[2] = {0, 0};
     uint i; /* Needed for assert*/
+    klee::ref<Expr> unsat_constraints[2];
     for (i = 0; i < it.second.size(); i++, cit++) {
       klee::Query sat_query(constraints, *cit);
       result = false;
       bool success = solver->mayBeTrue(sat_query, result);
       assert(success);
       if (!result) {
-        overlap_depth.insert({test_pair, i + 1});
-        branch.insert({test_pair, std::vector<ref<Expr>>()});
-        branch[test_pair].push_back(*cit);
+        depths[0] = i;
+        unsat_constraints[0] = *cit;
         break;
       }
     }
     assert(i < it.second.size() && "Trying to add duplicate test");
-    klee::ref<Expr> branch1 = *cit;
-
-    uint depth1 = i;
 
     /* Now iterate the other way */
     constraints = it.second;
@@ -1894,26 +1898,107 @@ void ConstraintTree::addTest(int id, ExecutionState state) {
       bool success = solver->mayBeTrue(sat_query, result);
       assert(success);
       if (!result) {
+        depths[1] = i;
+        unsat_constraints[1] = *cit;
         break;
       }
     }
-    assert(depth1 == i &&
-           "Tree generation algorithm will fail due to mismatched prefixes");
+
+    /* Some checks */
     ConstraintManager branch_constraints;
-    branch_constraints.addConstraint(branch1);
-    klee::Query sat_query(branch_constraints, *cit);
+    branch_constraints.addConstraint(unsat_constraints[0]);
+    klee::Query sat_query(branch_constraints, unsat_constraints[1]);
     result = false;
     bool success = solver->mayBeTrue(sat_query, result);
     assert(success);
     assert(!result && "Branching constraints are not mutually unsat");
-    branch[test_pair].push_back(*cit);
+
+    assert(depths[0] >= depths[1] &&
+           "Constraint patching will go wrong due to incorrect assumptions");
+
+    if (depths[0] > depths[1]) {
+
+      ConstraintManager final_constraints;
+      /* Fixing constraints */
+      for (i = 0, cit = state.constraints.begin(); i < depths[1]; i++, cit++)
+        final_constraints.addConstraint(*cit);
+
+      for (i = depths[1], cit = it.second.begin() + depths[1]; i < depths[0];
+           i++, cit++)
+        final_constraints.addConstraint(*cit);
+
+      for (i = depths[1], cit = state.constraints.begin() + depths[1];
+           i < state.constraints.size(); i++, cit++)
+        final_constraints.addConstraint(*cit);
+
+      state.constraints = final_constraints;
+    }
   }
-  overlap_depth.insert({std::minmax(id, id), state.constraints.size() + 1});
-  seen_tests.insert({id, state.constraints});
+  seen_tests.push_back(std::make_pair(id, state.constraints));
+}
+
+void ConstraintTree::buildTree() {
+
+  for (auto it : seen_tests) {
+    overlap_depth.insert(
+        {std::minmax(it.first, it.first), it.second.size() + 1});
+
+    for (uint j = it.first + 1; j < seen_tests.size(); j++) {
+      auto it1 = seen_tests[j]; // Horrible code, need to change
+
+      std::pair<int, int> test_pair = std::minmax(it1.first, it.first);
+
+      /* Iterating through constraints of existing test */
+      ConstraintManager constraints = it1.second;
+      ConstraintManager::constraint_iterator cit = it.second.begin();
+      bool result;
+      uint i; /* Needed for assert*/
+      for (i = 0; i < it.second.size(); i++, cit++) {
+        klee::Query sat_query(constraints, *cit);
+        result = false;
+        bool success = solver->mayBeTrue(sat_query, result);
+        assert(success);
+        if (!result) {
+          overlap_depth.insert({test_pair, i + 1});
+          branch.insert({test_pair, std::vector<ref<Expr>>()});
+          branch[test_pair].push_back(*cit);
+          break;
+        }
+      }
+      assert(i < it.second.size() && "Trying to add duplicate test");
+      klee::ref<Expr> branch1 = *cit;
+
+      uint first_iter_depth = i;
+
+      /* Now iterate the other way */
+      constraints = it.second;
+      cit = it1.second.begin();
+      for (i = 0; i < it1.second.size(); i++, cit++) {
+        klee::Query sat_query(constraints, *cit);
+        result = false;
+        bool success = solver->mayBeTrue(sat_query, result);
+        assert(success);
+        if (!result) {
+          break;
+        }
+      }
+      assert(first_iter_depth == i &&
+             "Tree generation algorithm will fail due to mismatched prefixes");
+      ConstraintManager branch_constraints;
+      branch_constraints.addConstraint(branch1);
+      klee::Query sat_query(branch_constraints, *cit);
+      result = false;
+      bool success = solver->mayBeTrue(sat_query, result);
+      assert(success);
+      assert(!result && "Branching constraints are not mutually unsat");
+      branch[test_pair].push_back(*cit);
+    }
+  }
 }
 
 void ConstraintTree::dumpConstraintTree(llvm::raw_ostream *tree_file,
                                         llvm::raw_ostream *constraints_file) {
+  buildTree();
   for (auto it : overlap_depth) {
     *tree_file << it.first.first << "|" << it.first.second << "|" << it.second
                << "\n";

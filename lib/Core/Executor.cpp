@@ -1806,7 +1806,6 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     std::string f_name = f->getName().str();
     //Instruction tracing state management
     if(!state.traceCallStack.empty()){
-      assert(state.traceCallStack.back() == "IndirectCall" || state.traceCallStack.back() == f_name);
       state.traceCallStack.pop_back();
 
       //Now we check if this was the --end-fn on the call stack
