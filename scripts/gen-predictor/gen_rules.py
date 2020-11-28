@@ -20,10 +20,10 @@ def main():
       port_list[text[0]]=text[1]
   
   template_part1 = "\t\t\t| Bop(Eq,\n\t\t\t\t\t\t\t{v = Int "
-  template_part2 = "; t = Uint32},\n\t\t\t\t\t\t\t{v = Utility (Slice ({v=Id \"VIGOR_DEVICE\";t=_}, 0, 32)); t= Uint32})\n"
-  template_part3 = "\t\t\t\t\t->Some (Bop (Eq,\n\t\t\t\t\t\t\t\t\t\t\t{v = Str_idx({v = Id \"pkt\"; t = Unknown},\"port\"); t = Uint32},\n"
+  template_part2 = "; t =_},\n\t\t\t\t\t\t\t{v = Utility (Slice ({v=Id \"VIGOR_DEVICE\";t=_}, 0, 32)); t= _})\n"
+  template_part3 = "\t\t\t\t\t->Some (Bop (Eq,\n\t\t\t\t\t\t\t\t\t\t\t{v = Str_idx({v = Id \"pkt\"; t = Unknown},\"port\"); t = Unknown},\n"
   template_part4 = "\t\t\t\t\t\t\t\t\t\t\t{v = Id \""
-  template_part5 = "\"; t = Uint32}))"
+  template_part5 = "\"; t = Unknown}))"
 
   with open(domain_rules_file, 'r') as ip, open(output_file,'w') as op:
     for line in ip:

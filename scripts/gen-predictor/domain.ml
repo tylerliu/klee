@@ -6,6 +6,8 @@ let rewrite_rules : (term -> term option) list =
    (* Please ensure any field inside a struct is rewritten here, in particular the first field 
     * It will otherwise be overwritten bby the first rule in stage 2 *)
 
+    (* General user-buf rules *)
+
       (* user_buf[12:14] -> pkt.ether.type *)
       | Utility (Slice ({v=Id "user_buf";t=_}, 96, 16)) ->
         Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "ether");t=Unknown},
@@ -48,8 +50,58 @@ let rewrite_rules : (term -> term option) list =
       Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "dst_mac");t=Unknown},"e"))
       | Utility (Slice({v = Id "user_buf"; t = _},88,8)) ->
       Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "dst_mac");t=Unknown},"f"))
+
+      (* Src and dest IP addresses *)
+      | Utility (Slice ({v=Id "user_buf";t=_}, 208, 32)) ->
+      Some (Str_idx ({v=Id "pkt";t=Unknown}, "src_ip"))
+      | Utility (Slice ({v=Id "user_buf";t=_}, 240, 32)) ->
+      Some (Str_idx ({v=Id "pkt";t=Unknown}, "dst_ip"))
+
+      (* Src and dest IP addresses *)
+      | Utility (Slice ({v=Id "user_buf";t=_}, 272, 16)) ->
+      Some (Str_idx ({v=Id "pkt";t=Unknown}, "src_port"))
+      | Utility (Slice ({v=Id "user_buf";t=_}, 288, 16)) ->
+      Some (Str_idx ({v=Id "pkt";t=Unknown}, "dst_port"))
+
+      (* CRAB/Katran rules *)
+      (* lb_pkt[43:24] -> pkt.protocol *)
+      | Utility (Slice ({v=Id "lb_pkt";t=_}, 344, 8)) ->
+      Some (Str_idx ({v=Id "pkt";t=Unknown}, "protocol"))
+      (* lb_pkt[43:24] -> pkt.protocol *)
+      | Utility (Slice ({v=Id "lb_pkt";t=_}, 528, 16)) ->
+      Some (Str_idx ({v=Id "pkt";t=Unknown}, "flags_raw"))
       (* Insert program specific rules here *)
       | _ -> None);
+
+   (function (* Rewriting TCP flags *)
+
+    (* Processing of raw TCP flags - part 1 *)
+    | Bop (Bit_and,  
+          {v = Str_idx({v = Id "pkt"; t = Unknown}, "flags_raw"); t=_},
+          {v = Int 65295; t=_})
+     -> Some (Str_idx({v=Id "pkt";t=Unknown}, "flags_vector"))
+
+    (* Processing of raw TCP flags - part 2 *)
+    | Bop (Bit_or,  
+          {v = Str_idx({v = Id "pkt"; t = Unknown}, "flags_vector"); t=_},
+          {v = Int 80; t=_})
+      -> Some (Str_idx({v=Id "pkt";t=Unknown}, "flags"))
+
+    (* Processing of raw TCP flags - part 2 *)
+    | Bop (Bit_and,  
+        {v = Str_idx({v = Id "pkt"; t = Unknown}, "flags"); t=_},
+        {v = Int 4096; t=_})
+      ->  Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "tcp_flags");t=Unknown},
+                       "ack"))
+
+    | Bop (Bit_and,  
+        {v = Str_idx({v = Id "pkt"; t = Unknown}, "flags"); t=_},
+        {v = Int 512; t=_})
+      ->  Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "tcp_flags");t=Unknown},
+                      "syn"))
+
+
+     | _ -> None);
 
    (function (* Stage #2 rewriting *)
       (* Var[0:x] -> Var *)
@@ -63,6 +115,8 @@ let rewrite_rules : (term -> term option) list =
     (function (* Stage #3 rewriting *)
       (* x == 0 -> Not x *)
       | Bop (Eq, x, {v = Int 0; t = Uint32}) -> Some (Not x)
+      (* x != 0 -> x *)
+      | Not({ v= Bop (Eq, x, {v = Int 0; t =_}); t= _}) -> Some (x.v)
       | _ -> None);
 
     (function (* Stage #4 rewriting *)

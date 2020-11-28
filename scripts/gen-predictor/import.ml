@@ -647,6 +647,10 @@ let rec get_sexp_value_raw exp ?(at=Beginning) t =
     {v=Bop (Bit_or,
             (get_sexp_value_raw lhs Uint32 ~at),
             (get_sexp_value_raw rhs Uint32 ~at));t}
+  | Sexp.List [Sexp.Atom "Or"; Sexp.Atom "w16"; lhs; rhs] ->
+  {v=Bop (Bit_or,
+            (get_sexp_value_raw lhs Uint16 ~at),
+            (get_sexp_value_raw rhs Uint16 ~at));t}
   | Sexp.List [Sexp.Atom "And"; Sexp.Atom _; lhs; rhs] ->
     begin 
       match rhs with

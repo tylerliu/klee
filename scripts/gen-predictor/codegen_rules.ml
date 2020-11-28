@@ -53,7 +53,8 @@ let rewrite_cond cond =
 
 let rec rewrite_if_tree = function
   | Branch (c, t, e) ->
-    Branch ( (rewrite_cond {v=c;t=Boolean}).v,
+    (* print_endline (Sexp.to_string (Ir.sexp_of_term c)); *)
+    Branch ((rewrite_cond {v=c;t=Boolean}).v,
             rewrite_if_tree t, rewrite_if_tree e)
   | Leaf x -> Leaf x
 
