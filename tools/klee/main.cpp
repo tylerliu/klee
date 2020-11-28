@@ -1162,8 +1162,6 @@ void KleeHandler::dumpReusedSymbols() {
         *symbol_file << symbol_name << " | " << it1.second << "\n";
       }
     }
-    for (auto it1 : it.second) {
-    }
   }
 }
 
@@ -1868,6 +1866,8 @@ void ConstraintTree::addTest(int id, ExecutionState state) {
     assert(id == last_id + 1 && "Wrong order of tests to be added");
   }
 
+  unsigned int last_depth = 0;
+
   for (auto it : seen_tests) {
     /* Iterating through constraints of existing test */
     ConstraintManager constraints(state.constraints);
@@ -1888,7 +1888,9 @@ void ConstraintTree::addTest(int id, ExecutionState state) {
       }
     }
     assert(i < it.second.size() && "Trying to add duplicate test");
-
+    if(depths[0] < last_depth)
+      continue;
+    
     /* Now iterate the other way */
     constraints = it.second;
     cit = state.constraints.begin();
@@ -1933,8 +1935,18 @@ void ConstraintTree::addTest(int id, ExecutionState state) {
 
       state.constraints = final_constraints;
     }
+    if(last_depth > depths[0])
+      assert(0 && "Anomaly with tree structure. Fall back to using buildTree()");
+    last_depth = depths[0];
+    std::pair<int, int> test_pair = std::minmax(id,it.first);
+    overlap_depth.insert({test_pair,depths[0]+1});
+    branch.insert({test_pair, std::vector<ref<Expr>>()});
+    branch[test_pair].push_back(unsat_constraints[0]);
+    branch[test_pair].push_back(unsat_constraints[1]);
   }
+  std::cout << "Added test number: " << id <<"\n";
   seen_tests.push_back(std::make_pair(id, state.constraints));
+  overlap_depth.insert({std::minmax(id,id), state.constraints.size()+1});
 }
 
 void ConstraintTree::buildTree() {
@@ -1998,7 +2010,6 @@ void ConstraintTree::buildTree() {
 
 void ConstraintTree::dumpConstraintTree(llvm::raw_ostream *tree_file,
                                         llvm::raw_ostream *constraints_file) {
-  buildTree();
   for (auto it : overlap_depth) {
     *tree_file << it.first.first << "|" << it.first.second << "|" << it.second
                << "\n";
