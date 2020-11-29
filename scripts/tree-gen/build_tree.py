@@ -190,7 +190,8 @@ def merge_nodes_at_res(root, res):
     merge_nodes_spurious(root, res)
     # Need to do this repeatedly, since nodes change
     find_merge_resolutions(root)
-    merge_nodes_cc(root, res)
+    while(merge_nodes_cc(root, res)):
+        find_merge_resolutions(root)
 
 
 def merge_nodes_simple(root, res):
@@ -273,7 +274,7 @@ def merge_nodes_cc(root, res):
                 if((uncle.is_true + nephew.is_true) % 2 == 1):
                     if(neice != None):
                         neice.is_true = (neice.is_true+1) % 2
-                    merged_in_subj = "(Eq false " + merged_in_subj
+                    merged_in_subj = "(Eq false " + merged_in_subj + ")"
 
                 final_subj = "(" + conjunction + " w32 " + \
                     curr_subj + " " + merged_in_subj + ")"
@@ -284,6 +285,10 @@ def merge_nodes_cc(root, res):
                 nephew.parent = None
                 if(neice != None):
                     neice.parent = grandad
+
+                # A merge has occured. Tree needs to be reset. 
+                return 1
+    return 0
 
 
 def coalesce_within_resolution(root):
