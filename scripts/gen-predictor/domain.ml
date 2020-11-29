@@ -72,8 +72,8 @@ let rewrite_rules : (term -> term option) list =
       Some (Str_idx ({v=Id "pkt";t=Unknown}, "flags_raw"))
 
       (* CRAB/Katran ICMP rules *)
-      (* lb_icmp_pkt[54:55] -> pkt.icmp.type *)
-      | Utility (Slice ({v=Id "lb_icmp_pkt";t=_}, 432, 8)) ->
+      (* lb_pkt_icmp[54:55] -> pkt.icmp.type *)
+      | Utility (Slice ({v=Id "lb_pkt_icmp";t=_}, 432, 8)) ->
       Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "icmp");t=Unknown},
       "type"))
       (* Insert program specific rules here *)
@@ -156,6 +156,18 @@ let rewrite_rules : (term -> term option) list =
             {v = Str_idx({v = Id "pkt"; t = Unknown},"protocol"); t = Sint8},
             {v = Int 17; t = Sint8})
         -> Some (Str_idx({v = Id "pkt"; t = Unknown}, "is_UDP"))
+
+      (* pkt.is_ICMP_ECHO *)
+      | Bop(Eq, 
+            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "icmp"); t = Unknown}, "type"); t= _},
+            {v = Int 8; t = _})
+        -> Some (Str_idx({v = Id "pkt"; t = Unknown}, "is_ICMP_ECHO"))
+
+      (* pkt.is_ICMP_ECHO *)
+      | Bop(Eq, 
+            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "icmp"); t = Unknown}, "type"); t= _},
+            {v = Int 3; t = _})
+        -> Some (Str_idx({v = Id "pkt"; t = Unknown}, "is_ICMP_DEST_UNREACHABLE"))
 
       (* pkt.src_mac == pkt.dst_mac *)
       | Bop (And, 
