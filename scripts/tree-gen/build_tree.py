@@ -23,13 +23,14 @@ sys.setrecursionlimit(1000000)
 tags_file = sys.argv[1]
 perf_file = sys.argv[2]
 formula_file = sys.argv[3]
-perf_metric = sys.argv[4]
-tree_type = sys.argv[5]
-tree_file = sys.argv[6]
-constraint_file = sys.argv[7]
-max_perf = int(sys.argv[8])
-min_perf = int(sys.argv[9])
-constraint_node = sys.argv[10]
+bpf_calls_file = sys.argv[4]
+perf_metric = sys.argv[5]
+tree_type = sys.argv[6]
+tree_file = sys.argv[7]
+constraint_file = sys.argv[8]
+max_perf = int(sys.argv[9])
+min_perf = int(sys.argv[10])
+constraint_node = sys.argv[11]
 
 expected_perf = (max_perf+min_perf)/2
 perf_resolution = (max_perf-min_perf)/2
@@ -51,6 +52,7 @@ class MyNode(Constraint):
         self.tags = []
         self.max_perf = -1
         self.min_perf = -1
+        self.bpf_calls = 0
         self.formula = set()
         self.sub_tests = []
         self.constraints = Constraint()
@@ -81,6 +83,7 @@ class TreeNode(MyNode, NodeMixin):
 traces_perf = {}
 traces_tags = {}
 traces_perf_formula = {}
+traces_bpf_calls = {}
 leaf_tags = list()
 all_tag_prefixes = list()
 perf_var = {}
@@ -410,10 +413,6 @@ def pretty_print_tree(root):
     nodes = list(node.name for node in PostOrderIter(
         tree_root) if node.is_leaf)
     paths = list()
-    # for node in nodes:
-    #     node_path = get_node_path(node, root)
-    #     paths.append((node, node_path))
-    # depth_root = build_path_tree(paths)
     print_tree(root, file_name)
     if(tree_type == "neg-tree"):
         # Printing loop PCV violations
@@ -534,6 +533,8 @@ def print_res_tree(root, op_file):
                 s = s + prefix + c.subject + ") **AND** "
             s = s[0: (len(s)-len(" **AND** "))]  # Remove last and
             s = s+"," + "%d" % (int((leaf.max_perf + leaf.min_perf)/2))
+            if(leaf.bpf_calls):
+                s = s+ "+ %d*bpf_map_calls" %(leaf.bpf_calls)
             op.write(s+"\n")
 
 
@@ -767,6 +768,7 @@ def merge_nodes(final, merged_in):
     if(final.merge_res < merged_in.merge_res):
         final.merge_res = merged_in.merge_res
         final.merge_type = merged_in.merge_type
+    final.bpf_calls = max(final.bpf_calls, merged_in.bpf_calls)
 
 
 def get_merging_res(perf1, perf2):
@@ -939,10 +941,19 @@ def assign_tree_tags_and_perf(root):
             node.formula.add(traces_perf_formula[node.name])
             if(node.name in traces_tags):
                 node.tags = traces_tags[node.name]
+            if(node.name in traces_bpf_calls):
+                node.bpf_calls = int(traces_bpf_calls[node.name])
 
         else:
             node.max_perf, node.min_perf = get_perf_variability(node)
             assign_node_tags(node)
+            assign_node_bpf_calls(node)
+
+def assign_node_bpf_calls(node):
+    # Returns perf variability for an intermediate node in the tree.
+    children = list(node.children)
+    assert(len(children) <= 2 and len(children) > 0)
+    node.bpf_calls = max(list(node.bpf_calls for node in children))
 
 
 def assign_node_tags(node):
@@ -980,7 +991,8 @@ def node_identifier_fn(node):
         # tests = tests.replace(", ", "\n")
         # identifier += '%s' % (tests)
 
-        identifier += '\nPerf = %s' % ((node.max_perf + node.min_perf)/2)
+        identifier += '\nPerf = %d' % (int((node.max_perf + node.min_perf)/2))
+        identifier += '\nBPF calls = %s' % (node.bpf_calls) 
         # identifier += '\nFormula = %s' % (repr(node.formula))
 
     else:
@@ -1122,6 +1134,7 @@ def build_tree(tree_file):
 def get_traces_perf():
     global traces_perf
     global traces_perf_formula
+    global traces_bpf_calls
 
     # We assume that these values are
     with open(formula_file, 'r') as f:
@@ -1146,6 +1159,14 @@ def get_traces_perf():
             test_id = text[0:
                            find_nth(text, ",", 1)]
             assert(test_id in traces_perf_formula and "Missing perf formula")
+
+    with open(bpf_calls_file, 'r') as f:
+        for line in f:
+            text = line.rstrip()
+            test_id = text[0:find_nth(text, ",", 1)]
+            calls = text[(find_nth(text, "," , 1)+1):]
+            traces_bpf_calls[test_id] = calls
+
 
 
 def get_traces_tags():

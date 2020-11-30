@@ -7,6 +7,7 @@ traces_dir=${1:-klee-last} #traces_dir needs to contain files with the name *.pa
 output=${2:-stateless-perf.txt}
 verif_arg=${3:-verify-dpdk}
 metrics=${4:-x86}
+bpf=${5:-non-bpf}
 
 pushd $traces_dir
 
@@ -60,5 +61,8 @@ else
       # #Combine llvm metrics with x86_metrics
       # python3 $py_scripts_dir/combine_perf_llvm.py llvm_metrics x86_metrics $output
 fi 
+
+## Setup bpf-calls file independent of metric
+python3 $py_scripts_dir/count_bpf_calls.py ./ bpf-calls.txt
 
 popd

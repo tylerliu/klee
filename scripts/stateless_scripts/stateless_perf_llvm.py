@@ -32,7 +32,7 @@ with open(input_trace, 'r') as trace_file, open(output_perf, 'w') as perf_out:
             metric2+=1
         elif("store" in i):
             metric2+=1
-
-    perf_out.write("llvm instruction count,{}\n".format(metric1))
-    perf_out.write("llvm memory instructions,{}\n".format(metric2))
+    if(metric1):
+        perf_out.write("llvm instruction count,{}\n".format(metric1))
+        perf_out.write("llvm memory instructions,{}\n".format(metric2))
 

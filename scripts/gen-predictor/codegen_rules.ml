@@ -2,7 +2,7 @@ open Core
 open Ir
 
 type if_tree = Branch of term * if_tree * if_tree
-             | Leaf of int
+             | Leaf of string
 
 let rec gen_if_tree branches cumul_cnd =
   let find_agreeing_branches cnd =
@@ -30,7 +30,7 @@ let rec gen_if_tree branches cumul_cnd =
       Branch (pro, then_branch, else_branch)
     | None -> Leaf hd.perf
     end
-  | [] -> Leaf (-1)
+  | [] -> Leaf ("-1")
 
 let rec render_if_tree tree ident debug =
   match tree with
@@ -44,7 +44,7 @@ let rec render_if_tree tree ident debug =
     (render_if_tree t (ident ^ "    ") debug) ^ "\n" ^
     ident ^ "else:\n" ^
     (render_if_tree e (ident ^ "    ") debug)
-  | Leaf x -> ident ^ "return " ^ (string_of_int x)
+  | Leaf x -> ident ^ "return " ^ x
 
 let rewrite_cond cond =
   List.fold_left ~init:cond ~f:(fun cond rule ->
@@ -53,7 +53,7 @@ let rewrite_cond cond =
 
 let rec rewrite_if_tree = function
   | Branch (c, t, e) ->
-    (* print_endline (Sexp.to_string (Ir.sexp_of_term c)); *)
+    print_endline (Sexp.to_string (Ir.sexp_of_term c));
     Branch ((rewrite_cond {v=c;t=Boolean}).v,
             rewrite_if_tree t, rewrite_if_tree e)
   | Leaf x -> Leaf x

@@ -57,7 +57,7 @@ let rewrite_rules : (term -> term option) list =
       | Utility (Slice ({v=Id "user_buf";t=_}, 240, 32)) ->
       Some (Str_idx ({v=Id "pkt";t=Unknown}, "dst_ip"))
 
-      (* Src and dest IP addresses *)
+      (* Src and dest IP ports *)
       | Utility (Slice ({v=Id "user_buf";t=_}, 272, 16)) ->
       Some (Str_idx ({v=Id "pkt";t=Unknown}, "src_port"))
       | Utility (Slice ({v=Id "user_buf";t=_}, 288, 16)) ->
@@ -76,6 +76,18 @@ let rewrite_rules : (term -> term option) list =
       | Utility (Slice ({v=Id "lb_pkt_icmp";t=_}, 432, 8)) ->
       Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "icmp");t=Unknown},
       "type"))
+      (* lb_pkt_icmp[62:63] -> icmp_original_pkt.version_ihl *)
+      | Utility (Slice ({v=Id "lb_pkt_icmp";t=_}, 496, 8)) ->
+      Some (Str_idx ({v=Id "icmp_original_pkt";t=Unknown}, "version_ihl"))
+      (* lb_pkt_icmp[71:72] -> icmp_original_pkt.protocol *)
+      | Utility (Slice ({v=Id "lb_pkt_icmp";t=_}, 568, 8)) ->
+      Some (Str_idx ({v=Id "icmp_original_pkt";t=Unknown}, "protocol"))
+
+      (* Src and dest IP ports *)
+      | Utility (Slice ({v=Id "lb_pkt_icmp";t=_}, 272, 16)) ->
+      Some (Str_idx ({v=Id "pkt";t=Unknown}, "src_port"))
+      | Utility (Slice ({v=Id "user_buf";t=_}, 288, 16)) ->
+      Some (Str_idx ({v=Id "pkt";t=Unknown}, "dst_port"))
       (* Insert program specific rules here *)
       | _ -> None);
 

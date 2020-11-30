@@ -83,14 +83,14 @@ ExecutionState::ExecutionState(KFunction *kf)
       forkDisabled(false),
       ptreeNode(0),
       steppedInstructions(0),
-      relevantSymbols(), doTrace(true), condoneUndeclaredHavocs(false){
+      relevantSymbols(), doTrace(true), condoneUndeclaredHavocs(false), bpf_calls(0) {
   pushFrame(0, kf);
 }
 
 ExecutionState::ExecutionState(const std::vector<ref<Expr> > &assumptions)
     : constraints(assumptions), executionStateForLoopInProcess(0),
      ptreeNode(0), relevantSymbols(), doTrace(true),
-      condoneUndeclaredHavocs(false) {}
+      condoneUndeclaredHavocs(false), bpf_calls(0) {}
 
 ExecutionState::~ExecutionState() {
   for (unsigned int i = 0; i < symbolics.size(); i++) {
@@ -144,8 +144,8 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       havocs(state.havocs), havocNames(state.havocNames),
       callPath(state.callPath),
       relevantSymbols(state.relevantSymbols), doTrace(state.doTrace),
-      condoneUndeclaredHavocs(state.condoneUndeclaredHavocs)
-
+      condoneUndeclaredHavocs(state.condoneUndeclaredHavocs),
+      bpf_calls(state.bpf_calls)
 {
   for (unsigned int i=0; i<symbolics.size(); i++)
     symbolics[i].first->refCount++;

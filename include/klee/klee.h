@@ -287,6 +287,8 @@ int traced_variable_type(char *variable, char **type);
 
 void klee_map_symbol_names(char* symbol_name, int occurence, void*key, int width);
 
+void klee_add_bpf_call();
+
 #define PERF_MODEL_BRANCH(param, val1, val2)                                   \
   if (param) {                                                                 \
     param = val1;                                                              \

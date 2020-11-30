@@ -110,6 +110,7 @@ call_path_t *load_call_path(std::string file_name,
       STATE_CALLS_MULTILINE,
       STATE_CONSTRAINTS,
       STATE_TAGS,
+      STATE_BPF_CALLS,
     } state = STATE_INIT;
 
     std::string array_dsid;
@@ -379,6 +380,10 @@ call_path_t *load_call_path(std::string file_name,
       } break;
 
       case STATE_TAGS: {
+        if(line == ";;-- BPF Calls --"){
+          state = STATE_BPF_CALLS;
+          continue;
+        }
         auto delim = line.find(" = ");
         assert(delim != std::string::npos && "Invalid Tag.");
         std::string name = line.substr(0, delim);
@@ -386,7 +391,7 @@ call_path_t *load_call_path(std::string file_name,
 
         call_path->tags[name] = value;
       } break;
-
+      case STATE_BPF_CALLS: break;
       default: { assert(false && "Invalid call path file."); } break;
       }
     }

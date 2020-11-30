@@ -50,14 +50,15 @@ touch tc_tags
 
 TREE_FILE="constraint-tree.txt"
 CONSTRAINT_FILE="constraint-branches.txt"
+BPF_CALLS_FILE="bpf-calls.txt" ## HACK HACK HACK
 
 # METRICS=("instruction count" "memory instructions" "execution cycles")
 METRICS=("llvm instruction count")
 for METRIC in "${METRICS[@]}"; 
 do 
   METRIC_NAME=$(echo "$METRIC" | sed -e 's/ /_/')
-  python3 $KLEE_DIR/scripts/tree-gen/build_tree.py tc_tags combined_perf.txt perf-formula.txt "$METRIC" "neg-tree" $TREE_FILE $CONSTRAINT_FILE $MAX_PERF $MIN_PERF $CONSTRAINT_NODE
-  python3 $KLEE_DIR/scripts/tree-gen/build_tree.py tc_tags combined_perf.txt perf-formula.txt "$METRIC" "res-tree" $TREE_FILE $CONSTRAINT_FILE $MAX_PERF $MIN_PERF $CONSTRAINT_NODE
+  python3 $KLEE_DIR/scripts/tree-gen/build_tree.py tc_tags combined_perf.txt perf-formula.txt $BPF_CALLS_FILE "$METRIC" "neg-tree" $TREE_FILE $CONSTRAINT_FILE $MAX_PERF $MIN_PERF $CONSTRAINT_NODE
+  python3 $KLEE_DIR/scripts/tree-gen/build_tree.py tc_tags combined_perf.txt perf-formula.txt $BPF_CALLS_FILE "$METRIC" "res-tree" $TREE_FILE $CONSTRAINT_FILE $MAX_PERF $MIN_PERF $CONSTRAINT_NODE
 done
 
 mv res-tree* ../

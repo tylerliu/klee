@@ -1256,6 +1256,8 @@ void KleeHandler::dumpCallPath(const ExecutionState &state,
       delete buf;
     }
   }
+  *file << ";;-- BPF Calls --\n";
+  *file << state.bpf_calls <<"\n";
 }
 
 // This Handler is very hard-coded and may need maintainence from time to time.

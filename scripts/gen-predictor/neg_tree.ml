@@ -1,7 +1,7 @@
 open Core
 open Ir
 
-type tbranch = {cond : Ir.tterm list; perf : int}
+type tbranch = {cond : Ir.tterm list; perf : string}
 
 let () =
   let ip_file = Sys.argv.(1) in
@@ -14,4 +14,4 @@ let () =
    List.iter final_branches ~f:(fun br -> 
     let final_str_branches = List.map  br.cond ~f:(fun condn -> render_tterm condn) in
     List.iter final_str_branches ~f:(fun str_br -> Printf.printf "%s\t" str_br);
-    Printf.printf ",%d\n" br.perf )
+    Printf.printf ",%s\n" br.perf )

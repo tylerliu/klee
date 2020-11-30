@@ -173,6 +173,7 @@ public:
   HANDLER(handleDumpConstraints);
   HANDLER(handlePossiblyHavoc);
   HANDLER(handleMapSymbolNames);
+  HANDLER(handleAddBPFCall);
 #undef HANDLER
 };
 } // namespace klee

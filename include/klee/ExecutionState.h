@@ -369,8 +369,10 @@ public:
 
   std::map<std::string, std::map<int, ref<Expr>>> reused_symbols;
 
+  unsigned int bpf_calls;
+
 private:
-  ExecutionState() : ptreeNode(0) {}
+  ExecutionState() : ptreeNode(0), bpf_calls(0) {}
 
   void loopRepetition(const llvm::Loop *dstLoop, TimingSolver *solver,
                       bool *terminate);

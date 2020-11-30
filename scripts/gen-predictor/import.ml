@@ -1,7 +1,7 @@
 open Core
 open Ir
 
-type branch = {cond : term list; perf : int}
+type branch = {cond : term list; perf : string}
 
 let do_log = false
 
@@ -731,7 +731,7 @@ let parse_branches file =
       match fields with
       | [cond_raw; perf_raw] ->
         let cond_str = Str.split (Str.regexp " *\\*\\*AND\\*\\* *") cond_raw in
-        let perf = int_of_string perf_raw in
+        let perf = perf_raw in
         let cond = List.map cond_str ~f:(fun str -> (parse_condition str).v) in
         {cond;perf}
       | _ -> failwith (br ^ " is a malformed branch specification."))
