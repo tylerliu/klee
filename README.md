@@ -5,6 +5,8 @@ Note:
 
 KLEE Symbolic Virtual Machine
 
+[![Build Status](https://github.com/tylerliu/klee/workflows/CI/badge.svg)](https://github.com/tylerliu/klee/actions?query=workflow%3ACI)
+
 `KLEE` is a symbolic virtual machine built on top of the LLVM compiler
 infrastructure. Currently, there are two primary components:
 
