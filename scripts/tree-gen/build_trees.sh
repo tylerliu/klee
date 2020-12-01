@@ -9,8 +9,9 @@ MAX_PERF=-1
 MIN_PERF=-1
 TRACES_DIR=klee-last
 CONSTRAINT_NODE=none
+ENV_IND_METRIC="x86"
 
-while getopts ":t:m:n:c:p" opt; do
+while getopts ":t:m:n:c:p:e:" opt; do
   case $opt in
     t) TREE_TYPE="$OPTARG"
     ;;
@@ -21,6 +22,8 @@ while getopts ":t:m:n:c:p" opt; do
     c) CONSTRAINT_NODE="$OPTARG"
     ;;
     p) TRACES_DIR="$OPTARG"
+    ;;
+    e) ENV_IND_METRIC="$OPTARG"
     ;;
     \?) echo "Invalid option -$OPTARG" >&2
     ;;
@@ -52,8 +55,12 @@ TREE_FILE="constraint-tree.txt"
 CONSTRAINT_FILE="constraint-branches.txt"
 BPF_CALLS_FILE="bpf-calls.txt" ## HACK HACK HACK
 
-# METRICS=("instruction count" "memory instructions" "execution cycles")
-METRICS=("llvm instruction count")
+if [ $ENV_IND_METRIC == "x86" ]; then
+  METRICS=("instruction count")
+else
+  METRICS=("llvm instruction count")
+fi
+
 for METRIC in "${METRICS[@]}"; 
 do 
   METRIC_NAME=$(echo "$METRIC" | sed -e 's/ /_/')

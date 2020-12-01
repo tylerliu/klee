@@ -23,33 +23,33 @@ let rewrite_rules : (term -> term option) list =
         Some (Str_idx ({v=Id "pkt";t=Unknown}, "version_ihl"))
       (* Src and dest MAC addresses *)
       | Utility (Slice ({v=Id "user_buf";t=_}, 0, 48)) ->
-        Some (Str_idx ({v=Id "pkt";t=Unknown}, "src_macaddr"))
-      | Utility (Slice ({v=Id "user_buf";t=_}, 48, 48)) ->
         Some (Str_idx ({v=Id "pkt";t=Unknown}, "dst_macaddr"))
+      | Utility (Slice ({v=Id "user_buf";t=_}, 48, 48)) ->
+        Some (Str_idx ({v=Id "pkt";t=Unknown}, "src_macaddr"))
       | Utility (Slice({v = Id "user_buf"; t = _},0,8)) ->
-        Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "src_mac");t=Unknown},"a"))
+        Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "dst_mac");t=Unknown},"a"))
       | Utility (Slice({v = Id "user_buf"; t = _},8,8)) ->
-      Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "src_mac");t=Unknown},"b"))
-      | Utility (Slice({v = Id "user_buf"; t = _},16,8)) ->
-      Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "src_mac");t=Unknown},"c"))
-      | Utility (Slice({v = Id "user_buf"; t = _},24,8)) ->
-      Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "src_mac");t=Unknown},"d"))
-      | Utility (Slice({v = Id "user_buf"; t = _},32,8)) ->
-      Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "src_mac");t=Unknown},"e"))
-      | Utility (Slice({v = Id "user_buf"; t = _},40,8)) ->
-      Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "src_mac");t=Unknown},"f"))
-      | Utility (Slice({v = Id "user_buf"; t = _},48,8)) ->
-      Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "dst_mac");t=Unknown},"a"))
-      | Utility (Slice({v = Id "user_buf"; t = _},56,8)) ->
       Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "dst_mac");t=Unknown},"b"))
-      | Utility (Slice({v = Id "user_buf"; t = _},64,8)) ->
+      | Utility (Slice({v = Id "user_buf"; t = _},16,8)) ->
       Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "dst_mac");t=Unknown},"c"))
-      | Utility (Slice({v = Id "user_buf"; t = _},72,8)) ->
+      | Utility (Slice({v = Id "user_buf"; t = _},24,8)) ->
       Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "dst_mac");t=Unknown},"d"))
-      | Utility (Slice({v = Id "user_buf"; t = _},80,8)) ->
+      | Utility (Slice({v = Id "user_buf"; t = _},32,8)) ->
       Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "dst_mac");t=Unknown},"e"))
-      | Utility (Slice({v = Id "user_buf"; t = _},88,8)) ->
+      | Utility (Slice({v = Id "user_buf"; t = _},40,8)) ->
       Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "dst_mac");t=Unknown},"f"))
+      | Utility (Slice({v = Id "user_buf"; t = _},48,8)) ->
+      Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "src_mac");t=Unknown},"a"))
+      | Utility (Slice({v = Id "user_buf"; t = _},56,8)) ->
+      Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "src_mac");t=Unknown},"b"))
+      | Utility (Slice({v = Id "user_buf"; t = _},64,8)) ->
+      Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "src_mac");t=Unknown},"c"))
+      | Utility (Slice({v = Id "user_buf"; t = _},72,8)) ->
+      Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "src_mac");t=Unknown},"d"))
+      | Utility (Slice({v = Id "user_buf"; t = _},80,8)) ->
+      Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "src_mac");t=Unknown},"e"))
+      | Utility (Slice({v = Id "user_buf"; t = _},88,8)) ->
+      Some (Str_idx ({v=Str_idx ({v=Id "pkt";t=Unknown}, "src_mac");t=Unknown},"f"))
 
       (* Src and dest IP addresses *)
       | Utility (Slice ({v=Id "user_buf";t=_}, 208, 32)) ->
@@ -184,8 +184,8 @@ let rewrite_rules : (term -> term option) list =
       (* pkt.src_mac == pkt.dst_mac *)
       | Bop (And, 
                 {v = Not { v = Bop(Sub,
-                                    {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "a"); t= Uint32},
-                                    {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "a"); t= Uint32}); 
+                                    {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "a"); t= Uint32},
+                                    {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "a"); t= Uint32}); 
                            t = Uint32};
                  t = Boolean},
                 { v = Bop(And,
@@ -193,37 +193,37 @@ let rewrite_rules : (term -> term option) list =
                                     {v = Bop(And,
                                               {v = Bop(And,
                                                         {v = Not { v = Bop(Sub,
-                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "b"); t= Uint32},
-                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "b"); t= Uint32}); 
+                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "b"); t= Uint32},
+                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "b"); t= Uint32}); 
                                                                   t = Uint32};
                                                         t = Boolean},
                                                         {v = Not { v = Bop(Sub,
-                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "c"); t= Uint32},
-                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "c"); t= Uint32}); 
+                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "c"); t= Uint32},
+                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "c"); t= Uint32}); 
                                                                   t = Uint32};
                                                         t = Boolean});
                                               t = Boolean},
                                               {v = Not { v = Bop(Sub,
-                                                                  {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "d"); t= Uint32},
-                                                                  {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "d"); t= Uint32}); 
+                                                                  {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "d"); t= Uint32},
+                                                                  {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "d"); t= Uint32}); 
                                                         t = Uint32};
                                               t = Boolean});
                                     t = Boolean},
                                     {v = Not { v = Bop(Sub,
-                                                        {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "e"); t= Uint32},
-                                                        {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "e"); t= Uint32}); 
+                                                        {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "e"); t= Uint32},
+                                                        {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "e"); t= Uint32}); 
                                               t = Uint32};
                                     t = Boolean});
                           t = Boolean},
                           {v = Not { v = Bop(Sub,
-                                              {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "f"); t= Uint32},
-                                              {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "f"); t= Uint32}); 
+                                              {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "f"); t= Uint32},
+                                              {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "f"); t= Uint32}); 
                                     t = Uint32};
                           t = Boolean});
                 t = Boolean}) 
         -> Some ( Bop (Eq, 
-                        {v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown},
-                        {v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}))
+                        {v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown},
+                        {v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}))
 
       (* pkt.src_mac == pkt.dst_mac *) (* Sometimes the order gets changed. Need to figure out why *)
       | Bop (And, 
@@ -232,42 +232,42 @@ let rewrite_rules : (term -> term option) list =
                                     {v = Bop(And,
                                               {v = Bop(And,
                                                         {v = Not { v = Bop(Sub,
-                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "a"); t= Uint32},
-                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "a"); t= Uint32}); 
+                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "a"); t= Uint32},
+                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "a"); t= Uint32}); 
                                                                   t = Uint32};
                                                         t = Boolean},
                                                         {v = Not { v = Bop(Sub,
-                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "b"); t= Uint32},
-                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "b"); t= Uint32}); 
+                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "b"); t= Uint32},
+                                                                            {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "b"); t= Uint32}); 
                                                                   t = Uint32};
                                                         t = Boolean});
                                               t = Boolean},
                                               {v = Not { v = Bop(Sub,
-                                                                  {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "c"); t= Uint32},
-                                                                  {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "c"); t= Uint32}); 
+                                                                  {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "c"); t= Uint32},
+                                                                  {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "c"); t= Uint32}); 
                                                         t = Uint32};
                                               t = Boolean});
                                     t = Boolean},
                                     {v = Not { v = Bop(Sub,
-                                                        {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "d"); t= Uint32},
-                                                        {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "d"); t= Uint32}); 
+                                                        {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "d"); t= Uint32},
+                                                        {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "d"); t= Uint32}); 
                                               t = Uint32};
                                     t = Boolean});
                           t = Boolean},
                           {v = Not { v = Bop(Sub,
-                                              {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "e"); t= Uint32},
-                                              {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "e"); t= Uint32}); 
+                                              {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "e"); t= Uint32},
+                                              {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "e"); t= Uint32}); 
                                     t = Uint32};
                           t = Boolean});
                 t = Boolean},
                 {v = Not { v = Bop(Sub,
-                                    {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "f"); t= Uint32},
-                                    {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "f"); t= Uint32}); 
+                                    {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}, "f"); t= Uint32},
+                                    {v = Str_idx({v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}, "f"); t= Uint32}); 
                            t = Uint32};
                  t = Boolean}) 
         -> Some ( Bop (Eq, 
-                        {v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown},
-                        {v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown}))
+                        {v = Str_idx({v = Id "pkt"; t = Unknown}, "dst_mac"); t = Unknown},
+                        {v = Str_idx({v = Id "pkt"; t = Unknown}, "src_mac"); t = Unknown}))
     | _ -> None);
                       
   ]
