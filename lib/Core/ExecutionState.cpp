@@ -838,7 +838,7 @@ void ExecutionState::traceExtraFPtr(ref<Expr> ptr, Expr::Width width,
   uint32_t fn_id = 0;
   std::string fn_name = extraFPtr->funPtr->getName();
   if (name == "map_hash") {
-    if (fn_name == "FlowId_hash")
+    if (fn_name == "FlowId_hash" || fn_name == "fw_flow_hash")
       fn_id = 1;
     else if (fn_name == "ether_addr_hash")
       fn_id = 2;
@@ -849,7 +849,7 @@ void ExecutionState::traceExtraFPtr(ref<Expr> ptr, Expr::Width width,
     else if (fn_name == "policer_flow_hash")
       fn_id = 5;
   } else if (name == "map_key_eq") {
-    if (fn_name == "FlowId_eq")
+    if (fn_name == "FlowId_eq" || fn_name == "fw_flow_eq")
       fn_id = 1;
     else if (fn_name == "ether_addr_eq")
       fn_id = 2;
