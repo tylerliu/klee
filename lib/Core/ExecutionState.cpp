@@ -848,6 +848,8 @@ void ExecutionState::traceExtraFPtr(ref<Expr> ptr, Expr::Width width,
       fn_id = 4;
     else if (fn_name == "policer_flow_hash")
       fn_id = 5;
+    else if (fn_name == "natasha_flow_hash")
+      fn_id = 5;
   } else if (name == "map_key_eq") {
     if (fn_name == "FlowId_eq" || fn_name == "fw_flow_eq")
       fn_id = 1;
@@ -858,6 +860,8 @@ void ExecutionState::traceExtraFPtr(ref<Expr> ptr, Expr::Width width,
     else if (fn_name == "lb_ip_equality")
       fn_id = 4;
     else if (fn_name == "policer_flow_eq")
+      fn_id = 5;
+    else if (fn_name == "natasha_flow_eq")
       fn_id = 5;
   }
   assert(fn_id > 0 && "Unknown hash function");
