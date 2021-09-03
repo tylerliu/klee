@@ -2,12 +2,8 @@
 # vim: set ts=2 sts=2 sw=2 et si tw=80:
 
 import sys
-import string
 import os
-import math
 import operator
-import subprocess
-import delegator
 
 # https://anytree.readthedocs.io/en/latest/index.html
 from anytree import NodeMixin, RenderTree, PostOrderIter, LevelOrderIter
@@ -54,6 +50,7 @@ class MyNode(Constraint):
         self.min_perf = -1
         self.bpf_calls = 0
         self.formula = set()
+        self.constraint_pair = list() #Hacky, this should be a pair (e.g., std::pair)
         self.sub_tests = []
         self.constraints = Constraint()
         self.is_true = -1
@@ -903,17 +900,13 @@ def assign_tree_constraints(root):
 def assign_node_constraints(node):
     assert(node != None and "node not present")
     assert(len(node.children) == 2 and "Leaf node provided")
-    children = list(node.children)
-    assert(len(children[0].sub_tests) and len(children[1].sub_tests))
-    test1 = int(children[0].sub_tests[0].replace("test", ""))
-    test2 = int(children[1].sub_tests[0].replace("test", ""))
+    assert(len(node.constraint_pair) == 2 and "Node constraint pair not initialized")
+    test1 = node.constraint_pair[0]
+    test2 = node.constraint_pair[1]  # Test1 is guaranteed to be smaller than test 2 by build_tree() 
     constraints = prefix_branch_constraints[test1][test2]
     assert(len(constraints) == 2)
     # In the above matrix, the first constraint in the list always points to the test with the smaller numeric value.
     # That is a property of how the constraints are dumped from KLEE
-    if(test1 > test2):  # Need to re-order the list.
-        constraints = [constraints[1], constraints[0]]
-    # Now we can be sure that the constraints are ordered by the children
     if(len(constraints[0]) > len(constraints[1])):
         short_constraint = constraints[1]
         long_constraint = constraints[0]
@@ -1051,7 +1044,7 @@ def build_tree(tree_file):
         for line in f:
             ctr = ctr + 1
 
-    num_lines = int(math.sqrt(2*ctr))
+    num_lines = int((ctr+1)/2)
     prefix_match_lengths = [
         [-1 for i in range(num_lines)] for i in range(num_lines)]
     prefix_branch_constraints = [
@@ -1096,12 +1089,17 @@ def build_tree(tree_file):
         if(i != 0):
             lpm_index, lpm = max(
                 enumerate(prefix_match_lengths[i][0:i]), key=operator.itemgetter(1))
+            assert(lpm == prefix_match_lengths[i][i-1])
         else:
             lpm = 0
             lpm_index = 0
 
         subtree_root = tree_root
         subtree_root = find_lpm_node(subtree_root, lpm_index, lpm, i)
+        if(len(subtree_root.constraint_pair)):
+            print("%d, %d and %d, %d" %(subtree_root.constraint_pair[0], subtree_root.constraint_pair[1],lpm_index, i))
+        assert(len(subtree_root.constraint_pair)== 0)
+        subtree_root.constraint_pair.extend((lpm_index, i))
         rem_len = prefix_match_lengths[i][i] - lpm
         leaf_node_name = "test"+f"{i:06d}"
         # print("inserting node %s" % (leaf_node_name))

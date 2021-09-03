@@ -1335,7 +1335,8 @@ void KleeHandler::dumpCallPathInstructions(const ExecutionState &state,
                                          "map2_set_entry_condition",
                                          "map2_reset",
                                          "map2_increase_occupancy",
-                                         "map2_decrease_occupancy"};
+                                         "map2_decrease_occupancy",
+                                         "process_ip_packet"};
   std::vector<std::string> dpdk_fns = {"rte_reset",
                                        "rte_arch_bswap16",
                                        "rte_arch_bswap32",
@@ -1863,22 +1864,19 @@ void CallTree::dumpCallPrefixesSExpr(std::list<CallInfo> accumulated_prefix,
 
 void ConstraintTree::addTest(int id, ExecutionState state) {
 
+  std::pair<int, ConstraintManager> last_test;
   if (id) {
-    int last_id = seen_tests.back().first;
-    assert(id == last_id + 1 && "Wrong order of tests to be added");
-  }
+    last_test = seen_tests.back();
+    assert(id == last_test.first + 1 && "Wrong order of tests to be added");
 
-  unsigned int last_depth = 0;
-
-  for (auto it : seen_tests) {
     /* Iterating through constraints of existing test */
     ConstraintManager constraints(state.constraints);
-    ConstraintManager::constraint_iterator cit = it.second.begin();
+    ConstraintManager::constraint_iterator cit = last_test.second.begin();
     bool result;
     uint depths[2] = {0, 0};
     uint i; /* Needed for assert*/
     klee::ref<Expr> unsat_constraints[2];
-    for (i = 0; i < it.second.size(); i++, cit++) {
+    for (i = 0; i < last_test.second.size(); i++, cit++) {
       klee::Query sat_query(constraints, *cit);
       result = false;
       bool success = solver->mayBeTrue(sat_query, result);
@@ -1889,12 +1887,10 @@ void ConstraintTree::addTest(int id, ExecutionState state) {
         break;
       }
     }
-    assert(i < it.second.size() && "Trying to add duplicate test");
-    if(depths[0] < last_depth)
-      continue;
-    
+    assert(i < last_test.second.size() && "Trying to add duplicate test");
+
     /* Now iterate the other way */
-    constraints = it.second;
+    constraints = last_test.second;
     cit = state.constraints.begin();
     for (i = 0; i < state.constraints.size(); i++, cit++) {
       klee::Query sat_query(constraints, *cit);
@@ -1927,7 +1923,7 @@ void ConstraintTree::addTest(int id, ExecutionState state) {
       for (i = 0, cit = state.constraints.begin(); i < depths[1]; i++, cit++)
         final_constraints.addConstraint(*cit);
 
-      for (i = depths[1], cit = it.second.begin() + depths[1]; i < depths[0];
+      for (i = depths[1], cit = last_test.second.begin() + depths[1]; i < depths[0];
            i++, cit++)
         final_constraints.addConstraint(*cit);
 
@@ -1937,10 +1933,8 @@ void ConstraintTree::addTest(int id, ExecutionState state) {
 
       state.constraints = final_constraints;
     }
-    if(last_depth > depths[0])
-      assert(0 && "Anomaly with tree structure. Fall back to using buildTree()");
-    last_depth = depths[0];
-    std::pair<int, int> test_pair = std::minmax(id,it.first);
+
+    std::pair<int, int> test_pair (last_test.first, id);
     overlap_depth.insert({test_pair,depths[0]+1});
     branch.insert({test_pair, std::vector<ref<Expr>>()});
     branch[test_pair].push_back(unsat_constraints[0]);
