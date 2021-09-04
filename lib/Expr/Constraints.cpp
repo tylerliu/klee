@@ -25,7 +25,7 @@ namespace {
 llvm::cl::opt<bool> RewriteEqualities(
     "rewrite-equalities",
     llvm::cl::desc("Rewrite existing constraints when an equality with a "
-                   "constant is added (default=true)"),
+                   "constant is added (default=false)"),
     llvm::cl::init(false),
     llvm::cl::cat(SolvingCat));
 }
