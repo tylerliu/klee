@@ -372,7 +372,7 @@ public:
     solver = createCachingSolver(solver);
     solver = createIndependentSolver(solver);
   };
-  void addTest(int id, ExecutionState state);
+  void addTest(int id, ExecutionState &state);
   void dumpConstraintTree(llvm::raw_ostream *tree_file,
                           llvm::raw_ostream *constraints_file);
 };
@@ -413,7 +413,7 @@ public:
 
   void setInterpreter(Interpreter *i);
 
-  void processTestCase(const ExecutionState &state, const char *errorMessage,
+  void processTestCase(ExecutionState &state, const char *errorMessage,
                        const char *errorSuffix);
   void processCallPath(const ExecutionState &state);
 
@@ -584,7 +584,7 @@ KleeHandler::openTestFile(const std::string &suffix, unsigned id) {
 }
 
 /* Outputs all files (.ktest, .kquery, .cov etc.) describing a test case */
-void KleeHandler::processTestCase(const ExecutionState &state,
+void KleeHandler::processTestCase(ExecutionState &state,
                                   const char *errorMessage,
                                   const char *errorSuffix) {
   if (!WriteNone) {
@@ -671,14 +671,15 @@ void KleeHandler::processTestCase(const ExecutionState &state,
         m_callTree.addCallPath(state.callPath.begin(), state.callPath.end(),
                                id);
       }
+
+      if (DumpConstraintTree) {
+        m_constraintTree.addTest(id, state);
+      }
+
       if (DumpCallTraces) {
         std::unique_ptr<llvm::raw_fd_ostream> trace_file =
             openOutputFile(getTestFilename("call_path", id));
         dumpCallPath(state, trace_file.get());
-      }
-
-      if (DumpConstraintTree) {
-        m_constraintTree.addTest(id, state);
       }
 
       for (auto it : state.reused_symbols) {
@@ -1862,7 +1863,7 @@ void CallTree::dumpCallPrefixesSExpr(std::list<CallInfo> accumulated_prefix,
   }
 }
 
-void ConstraintTree::addTest(int id, ExecutionState state) {
+void ConstraintTree::addTest(int id, ExecutionState &state) {
 
   std::pair<int, ConstraintManager> last_test;
   if (id) {
@@ -1920,11 +1921,7 @@ void ConstraintTree::addTest(int id, ExecutionState state) {
 
       ConstraintManager final_constraints;
       /* Fixing constraints */
-      for (i = 0, cit = state.constraints.begin(); i < depths[1]; i++, cit++)
-        final_constraints.addConstraint(*cit);
-
-      for (i = depths[1], cit = last_test.second.begin() + depths[1]; i < depths[0];
-           i++, cit++)
+      for (i = 0, cit = last_test.second.begin(); i < depths[0]; i++, cit++)
         final_constraints.addConstraint(*cit);
 
       for (i = depths[1], cit = state.constraints.begin() + depths[1];

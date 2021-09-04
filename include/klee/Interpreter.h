@@ -44,7 +44,7 @@ public:
 
   virtual void incPathsExplored() = 0;
 
-  virtual void processTestCase(const ExecutionState &state,
+  virtual void processTestCase(ExecutionState &state,
                                const char *err,
                                const char *suffix) = 0;
   virtual void processCallPath(const ExecutionState &state) = 0;
