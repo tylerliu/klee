@@ -1904,6 +1904,7 @@ void ConstraintTree::addTest(int id, ExecutionState &state) {
         break;
       }
     }
+    assert(i < state.constraints.size() && "Could not find an unsat constraint");
 
     /* Some checks */
     ConstraintManager branch_constraints;
