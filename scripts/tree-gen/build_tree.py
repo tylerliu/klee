@@ -1060,7 +1060,9 @@ def build_tree(tree_file):
 
     with open(constraint_file, 'r') as f:
         acc = ""
+        num_constraints = 0
         for line in f:
+            num_constraints = num_constraints + 1
             text = line.strip()+"\n"
             if("|" in line):
                 if(acc != ""):
@@ -1079,10 +1081,11 @@ def build_tree(tree_file):
             else:
                 acc = acc+text
         # Last line has still not been assigned!
-        assert(acc != "")
-        assert(len(prefix_branch_constraints[index1][index2]) < 2)
-        prefix_branch_constraints[index1][index2].append(acc)
-        prefix_branch_constraints[index2][index1].append(acc)
+        if(num_constraints):
+            assert(acc != "")
+            assert(len(prefix_branch_constraints[index1][index2]) < 2)
+            prefix_branch_constraints[index1][index2].append(acc)
+            prefix_branch_constraints[index2][index1].append(acc)
 
     id_ctr = 0
     for i in range(num_lines):
