@@ -747,7 +747,7 @@ int main(int argc, char **argv, char **envp) {
       contract_get_user_variables();
   std::set<std::string> overriden_user_variables;
 
-  /* Incorporating user-provided PCVs */
+  /* Incorporating user-provided PCVs to bind all user variables */
 
   std::string user_variables_param = UserVariables;
   while (!user_variables_param.empty()) {
@@ -796,8 +796,8 @@ int main(int argc, char **argv, char **envp) {
     }
   }
 
-  std::vector<std::string> expressions_str; /* All expressions for UVs, OVs,
-                                               subcontracts */
+  /* Getting all expressions for UVs, OVs, subcontracts */
+  std::vector<std::string> expressions_str; 
   for (auto vit : user_variables_str) {
     expressions_str.push_back(vit.second);
   }
@@ -835,15 +835,8 @@ int main(int argc, char **argv, char **envp) {
   }
   assert(expressions.empty());
 
-  std::map<initial_var_t, std::set<klee::ref<klee::Expr>>::iterator>
-      candidate_iterators;
-  for (auto &it : call_path->initial_extra_vars) { /* This gets the iterators for all relevant OVs */
-    if (!overriden_user_variables.count(it.first.name) &&
-        optimization_variables.count(it.first.name)) {
-      candidate_iterators[it.first] =
-          optimization_variables[it.first.name].begin();
-    }
-  }
+  /* Vars is the final variable set we give the solver. User variables have been bound */
+  std::map<initial_var_t, klee::ref<klee::Expr>> vars = user_variables;
 
 #ifdef DEBUG
   std::cerr << "Debug: Binding user variables to:" << std::endl;
@@ -855,72 +848,111 @@ int main(int argc, char **argv, char **envp) {
   }
 #endif
 
-  std::map<std::string, long> max_performance;
-  std::map<std::string, std::map<std::string, std::set<int>>> final_cstate;
-  std::map<std::string, perf_formula> max_performance_formula;
+
+  /* Pull in all the constraints from the call path */
+
+  klee::Solver *solver = klee::createCoreSolver(klee::Z3_SOLVER);
+  assert(solver);
+  solver = createCexCachingSolver(solver);
+  solver = createCachingSolver(solver);
+  solver = createIndependentSolver(solver);
+
+  klee::ConstraintManager constraints = call_path->constraints;
+
+  klee::ExprBuilder *exprBuilder = klee::createDefaultExprBuilder();
+  for (auto extra_var : call_path->initial_extra_vars) {
+    std::string initial_name = "initial_" + extra_var.first.name + "_" +
+                               extra_var.first.ds_id + "_" +
+                               std::to_string(extra_var.first.occurence);
+
+    assert(call_path->arrays.count(initial_name));
+    const klee::Array *array = call_path->arrays[initial_name];
+    assert(array && "Initial variable not found");
+    klee::UpdateList ul(array, 0);
+    klee::ref<klee::Expr> read_expr =
+        exprBuilder->Read(ul, exprBuilder->Constant(0, klee::Expr::Int32));
+    for (unsigned offset = 1; offset < array->getSize(); offset++) {
+      read_expr = exprBuilder->Concat(
+          exprBuilder->Read(ul,
+                            exprBuilder->Constant(offset, klee::Expr::Int32)),
+          read_expr);
+    }
+    klee::ref<klee::Expr> eq_expr =
+        exprBuilder->Eq(read_expr, extra_var.second);
+
+    constraints.addConstraint(eq_expr);
+  }
+  
+  /* Now try to bind each initial OV individually */
+
+  std::set<klee::ref<klee::Expr>>::iterator ov_candidate_iterator;
+  for (auto &it : call_path->initial_extra_vars) { 
+    if (!overriden_user_variables.count(it.first.name) &&
+        optimization_variables.count(it.first.name)) {
+#ifdef DEBUG
+      std::cerr << "Trying to bind OV " << it.first.name << " from DS: " << 
+          it.first.ds_id << " with occurence: " << it.first.occurence << std::endl;
+      std::cerr << "Inital expression is: ";
+      it.second->print(llvm::errs());
+      std::cerr << std::endl;
+#endif 
+      for(auto cit : optimization_variables[it.first.name]){
+#ifdef DEBUG
+      std::cerr << "Comparing with: ";
+      cit->print(llvm::errs());
+      std::cerr << std::endl;
+#endif 
+        klee::ref<klee::Expr> eq_expr = exprBuilder->Eq(it.second,cit);
+        klee::Query sat_query(constraints, eq_expr);
+        bool result = false;
+        bool success = solver->mayBeTrue(sat_query, result);
+        assert(success);
+        if(result){
+#ifdef DEBUG
+        std::cerr << "SAT" << std::endl;
+#endif
+          assert(!vars.count(it.first) && "Multiple satisfying assignments for OV");
+          vars[it.first] = cit;
+        }
+      }
+      if(!vars.count(it.first)){
+        std::cerr<< "No satisfying assignment for OV: " << it.first.name << " from DS: " << 
+          it.first.ds_id << " with occurence: " << it.first.occurence << std::endl;
+        assert(0);
+      }
+    }
+  }
+
+
+  std::map<std::string, long> performance;
+  std::map<std::string, std::map<std::string, std::set<int>>> cstate;
+  std::map<std::string, perf_formula> formula;
 
   std::set<std::string> metrics = contract_get_metrics();
   for (auto metric : metrics) {
-    max_performance[metric] = -1;
+    performance[metric] = -1;
   }
 
-  std::map<initial_var_t, std::set<klee::ref<klee::Expr>>::iterator>::iterator
-      pos;
-  do {
-    std::map<initial_var_t, klee::ref<klee::Expr>> vars = user_variables;
+  performance = process_candidate(call_path, contract, vars, cstate, formula);
 
-    for (auto it : candidate_iterators) {
-      vars[it.first] = *it.second;
-    }
-
-    std::map<std::string, std::map<std::string, std::set<int>>>
-        candidate_cstate;
-    std::map<std::string, perf_formula> candidate_formula;
-    std::map<std::string, long> performance = process_candidate(
-        call_path, contract, vars, candidate_cstate, candidate_formula);
-    for (auto metric : performance) {
-      assert(metric.second >= 0);
-      if (metric.second > max_performance[metric.first]) {
-        final_cstate = candidate_cstate; /*Assumption that all three metrics
-                                            increase/decrease together*/
-        max_performance[metric.first] = metric.second;
-        max_performance_formula[metric.first] = candidate_formula[metric.first];
-      }
-    }
-
-    pos = candidate_iterators.begin();
-    if (!candidate_iterators.empty()) {
-      while (++(pos->second) == optimization_variables[pos->first.name].end()) {
-        if (++pos == candidate_iterators.end()) {
-          break;
-        }
-
-        for (auto reset_pos = candidate_iterators.begin(); reset_pos != pos;
-             reset_pos++) {
-          reset_pos->second =
-              optimization_variables[reset_pos->first.name].begin();
-        }
-      }
-    }
-  } while (pos != candidate_iterators.end());
-
-  if (max_performance.empty()) {
+  if (performance.empty()) {
+    /* This is possible when the user-overidden PCVs are not compatible with the path constraints */
     std::cerr << "Warning: No candidate was SAT." << std::endl;
   }
 
-  for (auto metric : max_performance) {
+  for (auto metric : performance) {
     std::cout << metric.first << "," << metric.second << std::endl;
   }
 
-  if (!max_performance_formula.empty()) {
-    for (auto metric : max_performance_formula) {
+  if (!formula.empty()) {
+    for (auto metric : formula) {
       std::cout << metric.first << ", Perf Formula:"
                 << contract_display_perf_formula(metric.second, PCVAbs);
     }
   }
 
-  if (!final_cstate.empty()) {
-    for (auto cstate_it : final_cstate) {
+  if (!cstate.empty()) {
+    for (auto cstate_it : cstate) {
       for (auto it : cstate_it.second) {
         std::cout << "Concrete State:" << cstate_it.first << ":" << it.first
                   << ":";
