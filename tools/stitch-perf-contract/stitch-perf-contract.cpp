@@ -428,6 +428,7 @@ std::map<std::string, long> process_candidate(
     std::map<std::string, std::map<std::string, std::set<int>>> &cstate,
     std::map<std::string, perf_formula> &total_performance_formula) {
   LOAD_SYMBOL(contract, contract_get_metrics);
+  LOAD_SYMBOL(contract, contract_get_user_variables);
   LOAD_SYMBOL(contract, contract_has_contract);
   LOAD_SYMBOL(contract, contract_num_sub_contracts);
   LOAD_SYMBOL(contract, contract_get_subcontract_constraints);
@@ -435,6 +436,10 @@ std::map<std::string, long> process_candidate(
   LOAD_SYMBOL(contract, contract_get_concrete_state);
   LOAD_SYMBOL(contract, contract_get_perf_formula);
   LOAD_SYMBOL(contract, contract_add_perf_formula);
+
+  /* Just for assert */
+  std::map<std::string, std::string> user_variables_str =
+      contract_get_user_variables();
 
 #ifdef DEBUG
   std::cerr << std::endl;
@@ -482,6 +487,7 @@ std::map<std::string, long> process_candidate(
 
   for (auto var : vars) {
     if (var.first.ds_id == "" && var.first.occurence == 0) {
+      assert(user_variables_str.count(var.first.name) && "Misbehaved non-PCV");
       for (auto vit : call_path->initial_extra_vars) {
         if (vit.first.name == var.first.name) {
           std::map<klee::ref<klee::Expr>, klee::ref<klee::Expr>> replacements;
@@ -831,8 +837,7 @@ int main(int argc, char **argv, char **envp) {
 
   std::map<initial_var_t, std::set<klee::ref<klee::Expr>>::iterator>
       candidate_iterators;
-  for (auto &it : call_path->initial_extra_vars) { /*This tries to set the value
-                                                      of the OVs? */
+  for (auto &it : call_path->initial_extra_vars) { /* This gets the iterators for all relevant OVs */
     if (!overriden_user_variables.count(it.first.name) &&
         optimization_variables.count(it.first.name)) {
       candidate_iterators[it.first] =
