@@ -48,3 +48,4 @@ sudo apt-get install python3-pip
 sudo python3 -m pip install anytree
 sudo python3 -m pip install sympy
 sudo python3 -m pip install delegator
+opam install core
