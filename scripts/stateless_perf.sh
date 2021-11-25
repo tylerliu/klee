@@ -36,6 +36,7 @@ if [ $metrics == x86 ]; then
 
       echo Generating address traces
 
+      touch concrete-state-log.txt # The stateful code should do this, but this is in case one wants to use only the stateless code (e.g., hyperkernel)
       parallel "python3 $py_scripts_dir/print_addresses.py {} \$(basename {} .packet.demarcated).tracelog.demarcated concrete-state-log.txt \$(basename {} .packet.demarcated).packet.unclassified_mem_trace \$(basename {} .packet.demarcated).packet.duplicated" ::: *.packet.demarcated
 
       echo Checking new hypothesis

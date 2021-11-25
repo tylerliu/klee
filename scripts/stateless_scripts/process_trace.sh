@@ -20,11 +20,6 @@ arg=$5
 
 
 
-if ! [[ "$arg" =~ ^(verify-dpdk|verify-hardware|verify-libc)$ ]]; then
-        echo "Unsupported parameter"
-	echo $arg
-        exit
-fi
 
 if [ "$inp_trace" -nt "$op_trace" ]; then
   echo "$inp_trace -> $op_trace"
@@ -43,7 +38,7 @@ if [ "$inp_trace" -nt "$op_trace" ]; then
     START=$(grep -n -m 1 "function_under_test" $inp_trace |sed  's/\([0-9]*\).*/\1/')
     END=$(grep -n "function_under_test" $inp_trace | tail -1 |sed  's/\([0-9]*\).*/\1/')
    
-  else
+  elif [ "$arg" == "verify-hardware" ]; then
    if grep -q "rte_eth_rx_burst" $inp_trace; then  
     START=$(grep -n -m 1 "rte_eth_rx_burst" $inp_trace |sed  's/\([0-9]*\).*/\1/')
    elif grep -q "ixgbe_recv" $inp_trace; then
@@ -61,7 +56,10 @@ if [ "$inp_trace" -nt "$op_trace" ]; then
    else
     END=$(grep -n "exit@plt" $inp_trace | tail -1 |sed  's/\([0-9]*\).*/\1/')
    fi
- 
+  
+  else # Pass your own function of interest
+    START=$(grep -n -m 1 $arg $inp_trace |sed  's/\([0-9]*\).*/\1/')
+    END=$(grep -n $arg $inp_trace | tail -1 |sed  's/\([0-9]*\).*/\1/')
   fi 
 
   QUIT=$((END+1))
