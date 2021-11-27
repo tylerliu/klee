@@ -125,7 +125,7 @@ extern "C" {
   KLEE_GET_VALUE_PROTO(ll, long long);
   KLEE_GET_VALUE_PROTO(_i32, int32_t);
   KLEE_GET_VALUE_PROTO(_i64, int64_t);
-  KLEE_GET_VALUE_PROTO(_u64, int64_t);
+  KLEE_GET_VALUE_PROTO(_u64, uint64_t);
 
 #undef KLEE_GET_VALUE_PROTO
 

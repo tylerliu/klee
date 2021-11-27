@@ -87,6 +87,7 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
   add("klee_get_valuell", handleGetValue, true),
   add("klee_get_value_i32", handleGetValue, true),
   add("klee_get_value_i64", handleGetValue, true),
+  add("klee_get_value_u64", handleGetValue, true),
   add("klee_define_fixed_object", handleDefineFixedObject, false),
   add("klee_get_obj_size", handleGetObjSize, true),
   add("klee_get_errno", handleGetErrno, true),

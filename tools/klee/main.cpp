@@ -2090,7 +2090,7 @@ static const char *modelledExternals[] = {
     "klee_check_memory_access", "klee_define_fixed_object",
     "klee_forbid_access", "klee_get_errno", "klee_get_valuef",
     "klee_get_valued", "klee_get_valuel", "klee_get_valuell",
-    "klee_get_value_i32", "klee_get_value_i64", "klee_get_obj_size",
+    "klee_get_value_i32", "klee_get_value_i64", "klee_get_value_u64", "klee_get_obj_size",
     "klee_induce_invariants", "klee_intercept_reads", "klee_intercept_writes",
     "klee_is_symbolic", "klee_make_symbolic", "klee_mark_global",
     "klee_open_merge", "klee_close_merge", "klee_prefer_cex",
