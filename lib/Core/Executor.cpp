@@ -1358,6 +1358,7 @@ void Executor::executeCall(ExecutionState &state,
                            KInstruction *ki,
                            Function *f,
                            std::vector< ref<Expr> > &arguments) {
+  klee_warning_once(f, "calling function %s.", f->getName().data());
   Instruction *i = ki->inst;
   if (i && isa<DbgInfoIntrinsic>(i))
     return;
