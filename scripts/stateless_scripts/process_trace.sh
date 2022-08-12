@@ -19,8 +19,6 @@ op_metadata=$4
 arg=$5
 
 
-
-
 if [ "$inp_trace" -nt "$op_trace" ]; then
   echo "$inp_trace -> $op_trace"
   echo "$inp_metadata -> $op_metadata"
@@ -56,17 +54,15 @@ if [ "$inp_trace" -nt "$op_trace" ]; then
    else
     END=$(grep -n "exit@plt" $inp_trace | tail -1 |sed  's/\([0-9]*\).*/\1/')
    fi
-  
+
   else # Pass your own function of interest
     START=$(grep -n -m 1 $arg $inp_trace |sed  's/\([0-9]*\).*/\1/')
     END=$(grep -n $arg $inp_trace | tail -1 |sed  's/\([0-9]*\).*/\1/')
   fi 
 
-  QUIT=$((END+1))
-  sed -n ""$START","$END"p;"$QUIT"q" $inp_trace > $op_trace
+  sed -n ""$START","$END"p" $inp_trace > $op_trace
   META_START=$(((START-2)*17+2))
   META_END=$(((END-1)*17+1))
-  META_QUIT=$((META_END+1))
-  sed -n ""$META_START","$META_END"p;"$META_QUIT"q" $inp_metadata > $op_metadata
+  sed -n ""$META_START","$META_END"p" $inp_metadata > $op_metadata
 
 fi
