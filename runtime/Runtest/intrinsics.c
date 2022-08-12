@@ -246,6 +246,8 @@ int klee_induce_invariants() {
 
 void klee_silent_exit(int x) { exit(x); }
 
+void klee_add_bpf_call() {}
+
 uintptr_t klee_choose(uintptr_t n) {
   uintptr_t x;
   klee_make_symbolic(&x, sizeof x, "klee_choose");
@@ -260,6 +262,10 @@ void klee_assume(uintptr_t x) {
   }
 }
 
+unsigned klee_is_symbolic(uintptr_t x) {
+  return 0;
+}
+
 #define KLEE_GET_VALUE_STUB(suffix, type)                                      \
   type klee_get_value##suffix(type x) { return x; }
 
@@ -269,6 +275,7 @@ KLEE_GET_VALUE_STUB(l, long)
 KLEE_GET_VALUE_STUB(ll, long long)
 KLEE_GET_VALUE_STUB(_i32, int32_t)
 KLEE_GET_VALUE_STUB(_i64, int64_t)
+KLEE_GET_VALUE_STUB(_u64, uint64_t)
 
 #undef KLEE_GET_VALUE_STUB
 
