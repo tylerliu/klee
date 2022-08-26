@@ -34,6 +34,11 @@ if [ $metrics == x86 ]; then
 
       parallel "python3 $py_scripts_dir/cleanup-instr-trace.py {} \$(basename {} .packet.demarcated).packet.comparison.trace" ::: *.packet.demarcated 
 
+      echo Generating instruction trace so that we can analyze i-cache footprint
+
+      parallel "python3 $py_scripts_dir/extract-instr-trace.py {} \$(basename {} .packet.demarcated).packet.instruction.trace" ::: *.packet.demarcated 
+      python3 $py_scripts_dir/instr-footprint.py ./ insns-footprint.txt
+
       echo Generating address traces
 
       touch concrete-state-log.txt # The stateful code should do this, but this is in case one wants to use only the stateless code (e.g., hyperkernel)
