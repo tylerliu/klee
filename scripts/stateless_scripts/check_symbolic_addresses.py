@@ -45,7 +45,7 @@ def main():
                                         addresses_touched[pc][addr] = 1
                                     else:
                                         addresses_touched[pc][addr] = addresses_touched[pc][addr]+1
-                                elif(pc not in addresses_touched):
+                                else:
                                     addresses_touched[pc] = {}
                                     addresses_touched[pc][addr] = 1
 
