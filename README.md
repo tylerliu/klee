@@ -1,5 +1,8 @@
 This repo contains features neccesary for the Bolt project.
 
+Note:
+- This repo supports Z3 version > 4.11.0
+
 KLEE Symbolic Virtual Machine
 
 `KLEE` is a symbolic virtual machine built on top of the LLVM compiler
