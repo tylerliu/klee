@@ -6,8 +6,7 @@ pin-trace.o: pin-trace.cpp
 	    -fno-stack-protector -fno-exceptions -funwind-tables -fasynchronous-unwind-tables -fno-rtti \
 	    -DTARGET_IA32E -DHOST_IA32E -fPIC -DTARGET_LINUX -fabi-version=2 \
 	    -I$(PINDIR)/source/include/pin -I$(PINDIR)/source/include/pin/gen \
-	    -isystem $(PINDIR)/extras/stlport/include \
-	    -isystem $(PINDIR)/extras/libstdc++/include \
+	    -isystem $(PINDIR)/extras/cxx/include \
 	    -isystem $(PINDIR)/extras/crt/include \
 	    -isystem $(PINDIR)/extras/crt/include/arch-x86_64 \
 	    -isystem $(PINDIR)/extras/crt/include/kernel/uapi \
@@ -31,7 +30,7 @@ pin-trace.so: pin-trace.o
 	    -L$(PINDIR)/extras/xed-intel64/lib \
 	    -lpin -lxed \
 	    $(PINDIR)/intel64/runtime/pincrt/crtendS.o \
-	    -lpin3dwarf -ldl-dynamic -nostdlib -lstlport-dynamic -lm-dynamic -lc-dynamic -lunwind-dynamic
+	    -lpindwarf -ldl-dynamic -nostdlib -lc++ -lc++abi -lm-dynamic -lc-dynamic -lunwind-dynamic
 
 clean:
 	rm -f pin-trace.so pin-trace.o

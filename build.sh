@@ -39,13 +39,11 @@ fi
 
 # Instruction Tracer
 pushd trace-instructions
-    make clean && make
+    make clean && make PINDIR="$KLEE_DIR/../pin"
 popd
 
 # Tree generation
 sudo apt-get install python3
 sudo apt-get install python3-pip
-sudo python3 -m pip install anytree
-sudo python3 -m pip install sympy
-sudo python3 -m pip install delegator
+sudo python3 -m pip install anytree sympy delegator
 opam install core
