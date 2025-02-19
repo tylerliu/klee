@@ -597,7 +597,7 @@ void KleeHandler::processTestCase(ExecutionState &state,
 
     const auto start_time = time::getWallTime();
 
-    unsigned id = m_numTotalTests++;
+    unsigned id = ++m_numTotalTests;
 
     if (success) {
       KTest b;
