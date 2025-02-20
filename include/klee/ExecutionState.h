@@ -10,8 +10,8 @@
 #ifndef KLEE_EXECUTIONSTATE_H
 #define KLEE_EXECUTIONSTATE_H
 
-#include "klee/Constraints.h"
-#include "klee/Expr.h"
+#include "klee/Expr/Constraints.h"
+#include "klee/Expr/Expr.h"
 #include "klee/Internal/ADT/ImmutableSet.h"
 #include "klee/Internal/ADT/TreeStream.h"
 #include "klee/Internal/System/Time.h"
@@ -227,6 +227,7 @@ private:
   // unsupported, use copy constructor
   ExecutionState &operator=(const ExecutionState &);
 
+  // function alias and hardware intercepts related states
   std::vector<FunctionAlias> fnAliases;
   std::map<uint64_t, std::string> readsIntercepts;
   std::map<uint64_t, std::string> writesIntercepts;
@@ -296,8 +297,7 @@ public:
   /// used for searchers to decide what paths to explore
   double weight;
 
-  /// @brief Exploration depth, i.e., number of times KLEE branched for this
-  /// state
+  /// @brief Exploration depth, i.e., number of times KLEE branched for this state
   unsigned depth;
 
   /// @brief History of complete path: represents branches taken to
@@ -327,11 +327,11 @@ public:
   /// @brief Ordered list of symbolics: used to generate test cases.
   //
   // FIXME: Move to a shared list structure (not critical).
-  std::vector<std::pair<const MemoryObject *, const Array *>> symbolics;
+  std::vector<std::pair<ref<const MemoryObject>, const Array *>> symbolics;
 
   /// @brief The list of possibly havoced memory locations with their names
   ///  and values placed at the last havoc event.
-  std::map<const MemoryObject *, HavocInfo> havocs;
+  std::map<ref<const MemoryObject>, HavocInfo> havocs;
 
   /// @brief The list of registered havoc mem location names, used to guarantee
   ///  uniqueness of each name.
@@ -454,4 +454,4 @@ public:
 };
 } // namespace klee
 
-#endif
+#endif /* KLEE_EXECUTIONSTATE_H */

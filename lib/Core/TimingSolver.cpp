@@ -11,7 +11,7 @@
 
 #include "klee/Config/Version.h"
 #include "klee/ExecutionState.h"
-#include "klee/Solver.h"
+#include "klee/Solver/Solver.h"
 #include "klee/Statistics.h"
 #include "klee/TimerStatIncrementer.h"
 
@@ -37,7 +37,7 @@ bool TimingSolver::evaluate(const ExecutionState& state, ref<Expr> expr,
 
   bool success = solver->evaluate(Query(state.constraints, expr), result);
 
-  state.queryCost += timer.check();
+  state.queryCost += timer.delta();
 
   return success;
 }
@@ -57,7 +57,7 @@ bool TimingSolver::mustBeTrue(const ExecutionState& state, ref<Expr> expr,
 
   bool success = solver->mustBeTrue(Query(state.constraints, expr), result);
 
-  state.queryCost += timer.check();
+  state.queryCost += timer.delta();
 
   return success;
 }
@@ -100,7 +100,7 @@ bool TimingSolver::getValue(const ExecutionState& state, ref<Expr> expr,
 
   bool success = solver->getValue(Query(state.constraints, expr), result);
 
-  state.queryCost += timer.check();
+  state.queryCost += timer.delta();
 
   return success;
 }
@@ -120,7 +120,7 @@ TimingSolver::getInitialValues(const ExecutionState& state,
                                                 ConstantExpr::alloc(0, Expr::Bool)), 
                                           objects, result);
   
-  state.queryCost += timer.check();
+  state.queryCost += timer.delta();
   
   return success;
 }

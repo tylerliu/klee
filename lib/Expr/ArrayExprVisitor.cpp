@@ -63,7 +63,7 @@ ConstantArrayExprVisitor::visitConcat(const ConcatExpr &ce) {
     // that is read at a symbolic index
     if (base->updates.root->isConstantArray() &&
         !isa<ConstantExpr>(base->index)) {
-      for (const UpdateNode *un = base->updates.head; un; un = un->next) {
+      for (const auto *un = base->updates.head.get(); un; un = un->next.get()) {
         if (!isa<ConstantExpr>(un->index) || !isa<ConstantExpr>(un->value)) {
           incompatible = true;
           return Action::skipChildren();
@@ -97,7 +97,7 @@ ExprVisitor::Action ConstantArrayExprVisitor::visitRead(const ReadExpr &re) {
   // It is an interesting ReadExpr if it contains a concrete array
   // that is read at a symbolic index
   if (re.updates.root->isConstantArray() && !isa<ConstantExpr>(re.index)) {
-    for (const UpdateNode *un = re.updates.head; un; un = un->next) {
+    for (const auto *un = re.updates.head.get(); un; un = un->next.get()) {
       if (!isa<ConstantExpr>(un->index) || !isa<ConstantExpr>(un->value)) {
         incompatible = true;
         return Action::skipChildren();
@@ -132,7 +132,7 @@ ExprVisitor::Action ConstantArrayExprVisitor::visitRead(const ReadExpr &re) {
 
 ExprVisitor::Action
 IndexCompatibilityExprVisitor::visitRead(const ReadExpr &re) {
-  if (re.updates.head) {
+  if (!re.updates.head.isNull()) {
     compatible = false;
     return Action::skipChildren();
   } else if (re.updates.root->isConstantArray() &&
@@ -183,28 +183,28 @@ ExprVisitor::Action IndexTransformationExprVisitor::visitMul(const MulExpr &e) {
 ExprVisitor::Action ArrayReadExprVisitor::visitConcat(const ConcatExpr &ce) {
   ReadExpr *base = ArrayExprHelper::hasOrderedReads(ce);
   if (base) {
-    return inspectRead(ce.hash(), ce.getWidth(), *base);
+    return inspectRead(const_cast<ConcatExpr *>(&ce), ce.getWidth(), *base);
   }
   return Action::doChildren();
 }
 ExprVisitor::Action ArrayReadExprVisitor::visitRead(const ReadExpr &re) {
-  return inspectRead(re.hash(), re.getWidth(), re);
+  return inspectRead(const_cast<ReadExpr *>(&re), re.getWidth(), re);
 }
 // This method is a mess because I want to avoid looping over the UpdateList
 // values twice
-ExprVisitor::Action ArrayReadExprVisitor::inspectRead(unsigned hash,
+ExprVisitor::Action ArrayReadExprVisitor::inspectRead(ref<Expr> hash,
                                                       Expr::Width width,
                                                       const ReadExpr &re) {
   // pre(*): index is symbolic
   if (!isa<ConstantExpr>(re.index)) {
     if (readInfo.find(&re) == readInfo.end()) {
-      if (re.updates.root->isSymbolicArray() && !re.updates.head) {
+      if (re.updates.root->isSymbolicArray() && re.updates.head.isNull()) {
         return Action::doChildren();
       }
-      if (re.updates.head) {
+      if (!re.updates.head.isNull()) {
         // Check preconditions on UpdateList nodes
         bool hasConcreteValues = false;
-        for (const UpdateNode *un = re.updates.head; un; un = un->next) {
+        for (const auto *un = re.updates.head.get(); un; un = un->next.get()) {
           // Symbolic case - \inv(update): index is concrete
           if (!isa<ConstantExpr>(un->index)) {
             incompatible = true;
@@ -243,32 +243,16 @@ ExprVisitor::Action ArrayReadExprVisitor::inspectRead(unsigned hash,
 
 ExprVisitor::Action
 ArrayValueOptReplaceVisitor::visitConcat(const ConcatExpr &ce) {
-  auto found = optimized.find(ce.hash());
+  auto found = optimized.find(const_cast<ConcatExpr *>(&ce));
   if (found != optimized.end()) {
     return Action::changeTo((*found).second.get());
   }
   return Action::doChildren();
 }
 ExprVisitor::Action ArrayValueOptReplaceVisitor::visitRead(const ReadExpr &re) {
-  auto found = optimized.find(re.hash());
+  auto found = optimized.find(const_cast<ReadExpr *>(&re));
   if (found != optimized.end()) {
     return Action::changeTo((*found).second.get());
   }
-  return Action::doChildren();
-}
-
-ExprVisitor::Action IndexCleanerVisitor::visitMul(const MulExpr &e) {
-  if (mul) {
-    if (!isa<ConstantExpr>(e.getKid(0)))
-      index = e.getKid(0);
-    else if (!isa<ConstantExpr>(e.getKid(1)))
-      index = e.getKid(1);
-    mul = false;
-  }
-  return Action::doChildren();
-}
-
-ExprVisitor::Action IndexCleanerVisitor::visitRead(const ReadExpr &) {
-  mul = false;
   return Action::doChildren();
 }

@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __EXE_FD__
-#define __EXE_FD__
+#ifndef KLEE_FD_H
+#define KLEE_FD_H
 
 #include "klee/Config/config.h"
 
@@ -23,8 +23,13 @@
 #include <sys/statfs.h>
 #endif
 
-#if defined(__APPLE__)
+#ifdef __APPLE__
 #include <sys/dtrace.h>
+#endif
+#ifdef __FreeBSD__
+#include "FreeBSD.h"
+#endif
+#if defined(__APPLE__) || defined(__FreeBSD__)
 #include <sys/mount.h>
 #include <sys/param.h>
 #if !defined(dirent64)
@@ -103,4 +108,4 @@ int __fd_ftruncate(int fd, off64_t length);
 int __fd_statfs(const char *path, struct statfs *buf);
 int __fd_getdents(unsigned int fd, struct dirent64 *dirp, unsigned int count);
 
-#endif /* __EXE_FD__ */
+#endif /* KLEE_FD_H */

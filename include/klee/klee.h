@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===*/
 
-#ifndef __KLEE_H__
-#define __KLEE_H__
+#ifndef KLEE_H
+#define KLEE_H
 
 #include "inttypes.h"
 #include "stddef.h"
@@ -322,4 +322,4 @@ DS_PATH(3);
 }
 #endif
 
-#endif /* __KLEE_H__ */
+#endif /* KLEE_H */

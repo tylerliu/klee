@@ -12,8 +12,8 @@
 #include "../lib/Core/Memory.h"
 #include "klee/Config/Version.h"
 #include "klee/ExecutionState.h"
-#include "klee/Expr.h"
-#include "klee/ExprBuilder.h"
+#include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/Internal/ADT/KTest.h"
 #include "klee/Internal/ADT/TreeStream.h"
 #include "klee/Internal/Support/Debug.h"
@@ -24,8 +24,8 @@
 #include "klee/Internal/System/Time.h"
 #include "klee/Interpreter.h"
 #include "klee/OptionCategories.h"
-#include "klee/Solver.h"
-#include "klee/SolverCmdLine.h"
+#include "klee/Solver/Solver.h"
+#include "klee/Solver/SolverCmdLine.h"
 #include "klee/Statistics.h"
 #include "klee/util/ExprPPrinter.h"
 
@@ -49,10 +49,6 @@
 
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
-
-#if LLVM_VERSION_CODE < LLVM_VERSION(3, 5)
-#include "llvm/Support/system_error.h"
-#endif
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(4, 0)
 #include <llvm/Bitcode/BitcodeReader.h>
@@ -81,242 +77,264 @@ using namespace llvm;
 using namespace klee;
 
 namespace {
-cl::opt<std::string> InputFile(cl::desc("<input bytecode>"), cl::Positional,
-                               cl::init("-"));
+  cl::opt<std::string> InputFile(cl::desc("<input bytecode>"), cl::Positional,
+                                cl::init("-"));
 
-cl::list<std::string> InputArgv(cl::ConsumeAfter,
-                                cl::desc("<program arguments>..."));
+  cl::list<std::string> InputArgv(cl::ConsumeAfter,
+                                  cl::desc("<program arguments>..."));
 
-/*** Test case options ***/
+  /*** Test case options ***/
 
-cl::OptionCategory TestCaseCat(
-    "Test case options",
-    "These options select the files to generate for each test case.");
+  cl::OptionCategory TestCaseCat(
+      "Test case options",
+      "These options select the files to generate for each test case.");
 
-cl::opt<bool>
-    WriteNone("write-no-tests", cl::init(false),
-              cl::desc("Do not generate any test files (default=false)"),
-              cl::cat(TestCaseCat));
+  cl::opt<bool>
+      WriteNone("write-no-tests", cl::init(false),
+                cl::desc("Do not generate any test files (default=false)"),
+                cl::cat(TestCaseCat));
 
-cl::opt<bool>
-    WriteCVCs("write-cvcs",
-              cl::desc("Write .cvc files for each test case (default=false)"),
-              cl::cat(TestCaseCat));
+  cl::opt<bool>
+      WriteCVCs("write-cvcs",
+                cl::desc("Write .cvc files for each test case (default=false)"),
+                cl::cat(TestCaseCat));
 
-cl::opt<bool> WriteKQueries(
-    "write-kqueries",
-    cl::desc("Write .kquery files for each test case (default=false)"),
-    cl::cat(TestCaseCat));
+  cl::opt<bool> WriteKQueries(
+      "write-kqueries",
+      cl::desc("Write .kquery files for each test case (default=false)"),
+      cl::cat(TestCaseCat));
 
-cl::opt<bool> WriteSMT2s(
-    "write-smt2s",
-    cl::desc(
-        "Write .smt2 (SMT-LIBv2) files for each test case (default=false)"),
-    cl::cat(TestCaseCat));
+  cl::opt<bool> WriteSMT2s(
+      "write-smt2s",
+      cl::desc(
+          "Write .smt2 (SMT-LIBv2) files for each test case (default=false)"),
+      cl::cat(TestCaseCat));
 
-cl::opt<bool> WriteCov(
-    "write-cov",
-    cl::desc("Write coverage information for each test case (default=false)"),
-    cl::cat(TestCaseCat));
+  cl::opt<bool> WriteCov(
+      "write-cov",
+      cl::desc("Write coverage information for each test case (default=false)"),
+      cl::cat(TestCaseCat));
 
-cl::opt<bool> WriteTestInfo(
-    "write-test-info",
-    cl::desc("Write additional test case information (default=false)"),
-    cl::cat(TestCaseCat));
+  cl::opt<bool> WriteTestInfo(
+      "write-test-info",
+      cl::desc("Write additional test case information (default=false)"),
+      cl::cat(TestCaseCat));
 
-cl::opt<bool>
-    WritePaths("write-paths",
-               cl::desc("Write .path files for each test case (default=false)"),
-               cl::cat(TestCaseCat));
+  cl::opt<bool>
+      WritePaths("write-paths",
+                cl::desc("Write .path files for each test case (default=false)"),
+                cl::cat(TestCaseCat));
 
-cl::opt<bool> WriteSymPaths(
-    "write-sym-paths",
-    cl::desc("Write .sym.path files for each test case (default=false)"),
-    cl::cat(TestCaseCat));
+  cl::opt<bool> WriteSymPaths(
+      "write-sym-paths",
+      cl::desc("Write .sym.path files for each test case (default=false)"),
+      cl::cat(TestCaseCat));
 
-cl::opt<bool> DumpCallTracePrefixes(
-    "dump-call-trace-prefixes",
-    cl::desc("Compute and dump all the prefixes for the call "
-             "traces, generated according to klee_trace_*."),
-    cl::init(false), cl::cat(TestCaseCat));
+  cl::opt<bool> DumpCallTracePrefixes(
+      "dump-call-trace-prefixes",
+      cl::desc("Compute and dump all the prefixes for the call "
+              "traces, generated according to klee_trace_*."),
+      cl::init(false), cl::cat(TestCaseCat));
 
-cl::opt<bool> DumpCallTraceTree(
-    "dump-call-trace-tree",
-    cl::desc("Compute and dump the tree formed by the call paths "
-             "generated according to klee_trace_*."),
-    cl::init(false), cl::cat(TestCaseCat));
+  cl::opt<bool> DumpCallTraceTree(
+      "dump-call-trace-tree",
+      cl::desc("Compute and dump the tree formed by the call paths "
+              "generated according to klee_trace_*."),
+      cl::init(false), cl::cat(TestCaseCat));
 
-cl::opt<bool> DumpConstraintTree("dump-constraint-tree",
-                                 cl::desc("Compute and dump the meta-info for "
-                                          "the tree formed by the constraints"),
-                                 cl::init(false), cl::cat(TestCaseCat));
+  cl::opt<bool> DumpConstraintTree("dump-constraint-tree",
+                                  cl::desc("Compute and dump the meta-info for "
+                                            "the tree formed by the constraints"),
+                                  cl::init(false), cl::cat(TestCaseCat));
 
-cl::opt<bool> DumpCallTraces(
-    "dump-call-traces",
-    cl::desc("Dump call traces into separate file each. The call "
-             "traces consist of function invocations with the "
-             "klee_trace_ret* intrinsic labels."),
-    cl::init(false), cl::cat(TestCaseCat));
+  cl::opt<bool> DumpCallTraces(
+      "dump-call-traces",
+      cl::desc("Dump call traces into separate file each. The call "
+              "traces consist of function invocations with the "
+              "klee_trace_ret* intrinsic labels."),
+      cl::init(false), cl::cat(TestCaseCat));
 
-cl::opt<bool> DumpCallTraceInstructions(
-    "dump-call-trace-instructions",
-    cl::desc("Log and dump each instruction executed for a call trace."),
-    cl::init(false), cl::cat(TestCaseCat));
+  cl::opt<bool> DumpCallTraceInstructions(
+      "dump-call-trace-instructions",
+      cl::desc("Log and dump each instruction executed for a call trace."),
+      cl::init(false), cl::cat(TestCaseCat));
 
-/*** Startup options ***/
+  /*** Startup options ***/
 
-cl::OptionCategory StartCat("Startup options",
-                            "These options affect how execution is started.");
+  cl::OptionCategory StartCat("Startup options",
+                              "These options affect how execution is started.");
 
-cl::opt<std::string>
-    EntryPoint("entry-point",
-               cl::desc("Function in which to start execution (default=main)"),
-               cl::init("main"), cl::cat(StartCat));
+  cl::opt<std::string> EntryPoint(
+      "entry-point",
+      cl::desc("Function in which to start execution (default=main)"),
+      cl::init("main"), cl::cat(StartCat));
 
-cl::opt<std::string>
-    RunInDir("run-in-dir",
-             cl::desc("Change to the given directory before starting execution "
-                      "(default=location of tested file)."),
-             cl::cat(StartCat));
+  cl::opt<std::string> RunInDir(
+      "run-in-dir",
+      cl::desc("Change to the given directory before starting execution "
+               "(default=location of tested file)."),
+      cl::cat(StartCat));
 
-cl::opt<std::string> OutputDir(
-    "output-dir",
-    cl::desc("Directory in which to write results (default=klee-out-<N>)"),
-    cl::init(""), cl::cat(StartCat));
+  cl::opt<std::string> OutputDir(
+      "output-dir",
+      cl::desc("Directory in which to write results (default=klee-out-<N>)"),
+      cl::init(""), 
+      cl::cat(StartCat));
 
-cl::opt<std::string> Environ(
-    "env-file",
-    cl::desc("Parse environment from the given file (in \"env\" format)"),
-    cl::cat(StartCat));
+  cl::opt<std::string> Environ(
+      "env-file",
+      cl::desc("Parse environment from the given file (in \"env\" format)"),
+      cl::cat(StartCat));
 
-cl::opt<bool> OptimizeModule(
-    "optimize", cl::desc("Optimize the code before execution (default=false)."),
-    cl::init(false), cl::cat(StartCat));
+  cl::opt<bool> OptimizeModule(
+      "optimize", 
+      cl::desc("Optimize the code before execution (default=false)."),
+      cl::init(false), 
+      cl::cat(StartCat));
 
-cl::opt<bool> WarnAllExternals(
-    "warn-all-external-symbols",
-    cl::desc(
-        "Issue a warning on startup for all external symbols (default=false)."),
-    cl::cat(StartCat));
+  cl::opt<bool> WarnAllExternals(
+      "warn-all-external-symbols",
+      cl::desc("Issue a warning on startup for all external symbols "
+               "(default=false)."),
+      cl::cat(StartCat));
 
-/*** Linking options ***/
+  /*** Linking options ***/
 
-cl::OptionCategory LinkCat("Linking options",
-                           "These options control the libraries being linked.");
+  cl::OptionCategory LinkCat("Linking options",
+                            "These options control the libraries being linked.");
 
-enum class LibcType { FreeStandingLibc, KleeLibc, UcLibc };
+  enum class LibcType { FreeStandingLibc, KleeLibc, UcLibc };
 
-cl::opt<LibcType> Libc(
-    "libc", cl::desc("Choose libc version (none by default)."),
-    cl::values(
-        clEnumValN(
-            LibcType::FreeStandingLibc, "none",
-            "Don't link in a libc (only provide freestanding environment)"),
-        clEnumValN(LibcType::KleeLibc, "klee", "Link in KLEE's libc"),
-        clEnumValN(LibcType::UcLibc, "uclibc",
-                   "Link in uclibc (adapted for KLEE)") KLEE_LLVM_CL_VAL_END),
-    cl::init(LibcType::FreeStandingLibc), cl::cat(LinkCat));
+  cl::opt<LibcType> Libc(
+      "libc", 
+      cl::desc("Choose libc version (none by default)."),
+      cl::values(
+          clEnumValN(LibcType::FreeStandingLibc, 
+                     "none",
+                     "Don't link in a libc (only provide freestanding environment)"),
+          clEnumValN(LibcType::KleeLibc, 
+                     "klee", 
+                     "Link in KLEE's libc"),
+          clEnumValN(LibcType::UcLibc, 
+                     "uclibc",
+                     "Link in uclibc (adapted for KLEE)") 
+          KLEE_LLVM_CL_VAL_END),
+      cl::init(LibcType::FreeStandingLibc), 
+      cl::cat(LinkCat));
 
-cl::list<std::string> LinkLibraries(
-    "link-llvm-lib",
-    cl::desc(
-        "Link the given library before execution. Can be used multiple times."),
-    cl::value_desc("library file"), cl::cat(LinkCat));
+  cl::list<std::string> LinkLibraries(
+      "link-llvm-lib",
+      cl::desc("Link the given bitcode library before execution, "
+        "e.g. .bca, .bc, .a. Can be used multiple times."),
+      cl::value_desc("bitcode library file"), 
+      cl::cat(LinkCat));
 
-cl::opt<bool> WithPOSIXRuntime(
-    "posix-runtime",
-    cl::desc("Link with POSIX runtime. Options that can be passed as arguments "
-             "to the programs are: --sym-arg <max-len>  --sym-args <min-argvs> "
-             "<max-argvs> <max-len> + file model options (default=false)."),
-    cl::init(false), cl::cat(LinkCat));
+  cl::opt<bool> WithPOSIXRuntime(
+      "posix-runtime",
+      cl::desc("Link with POSIX runtime. Options that can be passed as arguments "
+              "to the programs are: --sym-arg <max-len>  --sym-args <min-argvs> "
+              "<max-argvs> <max-len> + file model options (default=false)."),
+      cl::init(false), 
+      cl::cat(LinkCat));
 
-/*** Checks options ***/
+  /*** Checks options ***/
 
-cl::OptionCategory
-    ChecksCat("Checks options",
-              "These options control some of the checks being done by KLEE.");
+  cl::OptionCategory
+      ChecksCat("Checks options",
+                "These options control some of the checks being done by KLEE.");
 
-cl::opt<bool>
-    CheckDivZero("check-div-zero",
-                 cl::desc("Inject checks for division-by-zero (default=true)"),
-                 cl::init(true), cl::cat(ChecksCat));
+  cl::opt<bool> CheckDivZero(
+      "check-div-zero",
+      cl::desc("Inject checks for division-by-zero (default=true)"),
+      cl::init(true), 
+      cl::cat(ChecksCat));
 
-cl::opt<bool>
-    CheckOvershift("check-overshift",
-                   cl::desc("Inject checks for overshift (default=true)"),
-                   cl::init(true), cl::cat(ChecksCat));
+  cl::opt<bool> CheckOvershift(
+      "check-overshift",
+      cl::desc("Inject checks for overshift (default=true)"),
+      cl::init(true), 
+      cl::cat(ChecksCat));
 
-cl::opt<bool>
-    OptExitOnError("exit-on-error",
-                   cl::desc("Exit KLEE if an error in the tested application "
-                            "has been found (default=false)"),
-                   cl::init(false), cl::cat(TerminationCat));
+  cl::opt<bool> OptExitOnError(
+      "exit-on-error",
+      cl::desc("Exit KLEE if an error in the tested application "
+                "has been found (default=false)"),
+      cl::init(false), 
+      cl::cat(TerminationCat));
 
-/*** Replaying options ***/
+  /*** Replaying options ***/
 
-cl::OptionCategory ReplayCat("Replaying options",
-                             "These options impact replaying of test cases.");
+  cl::OptionCategory ReplayCat("Replaying options",
+                              "These options impact replaying of test cases.");
 
-cl::opt<bool> ReplayKeepSymbolic(
-    "replay-keep-symbolic",
-    cl::desc("Replay the test cases only by asserting "
-             "the bytes, not necessarily making them concrete."),
-    cl::cat(ReplayCat));
+  cl::opt<bool> ReplayKeepSymbolic(
+      "replay-keep-symbolic",
+      cl::desc("Replay the test cases only by asserting "
+              "the bytes, not necessarily making them concrete."),
+      cl::cat(ReplayCat));
 
-cl::list<std::string>
-    ReplayKTestFile("replay-ktest-file",
-                    cl::desc("Specify a ktest file to use for replay"),
-                    cl::value_desc("ktest file"), cl::cat(ReplayCat));
+  cl::list<std::string> ReplayKTestFile(
+      "replay-ktest-file",
+      cl::desc("Specify a ktest file to use for replay"),
+      cl::value_desc("ktest file"), 
+      cl::cat(ReplayCat));
 
-cl::list<std::string>
-    ReplayKTestDir("replay-ktest-dir",
-                   cl::desc("Specify a directory to replay ktest files from"),
-                   cl::value_desc("output directory"), cl::cat(ReplayCat));
+  cl::list<std::string> ReplayKTestDir(
+      "replay-ktest-dir",
+      cl::desc("Specify a directory to replay ktest files from"),
+      cl::value_desc("output directory"), 
+      cl::cat(ReplayCat));
 
-cl::opt<std::string> ReplayPathFile("replay-path",
-                                    cl::desc("Specify a path file to replay"),
-                                    cl::value_desc("path file"),
-                                    cl::cat(ReplayCat));
+  cl::opt<std::string> ReplayPathFile(
+      "replay-path",
+      cl::desc("Specify a path file to replay"),
+      cl::value_desc("path file"),
+      cl::cat(ReplayCat));
 
-cl::opt<bool> CondoneUndeclaredHavocs(
-    "condone-undeclared-havocs",
-    cl::desc("Do not throw an error if a memory location changes "
-             "its value during loop invarint analysis"),
-    cl::init(false), cl::cat(ReplayCat));
+  cl::opt<bool> CondoneUndeclaredHavocs(
+      "condone-undeclared-havocs",
+      cl::desc("Do not throw an error if a memory location changes "
+              "its value during loop invarint analysis"),
+      cl::init(false), cl::cat(ReplayCat));
 
-cl::list<std::string> SeedOutFile("seed-file",
-                                  cl::desc(".ktest file to be used as seed"),
-                                  cl::cat(SeedingCat));
+  cl::list<std::string> SeedOutFile(
+      "seed-file",
+      cl::desc(".ktest file to be used as seed"),
+      cl::cat(SeedingCat));
 
-cl::list<std::string>
-    SeedOutDir("seed-dir",
-               cl::desc("Directory with .ktest files to be used as seeds"),
-               cl::cat(SeedingCat));
+  cl::list<std::string> SeedOutDir(
+      "seed-dir",
+      cl::desc("Directory with .ktest files to be used as seeds"),
+      cl::cat(SeedingCat));
 
-cl::opt<unsigned> MakeConcreteSymbolic(
-    "make-concrete-symbolic",
-    cl::desc("Probabilistic rate at which to make concrete reads symbolic, "
-             "i.e. approximately 1 in n concrete reads will be made symbolic "
-             "(0=off, 1=all).  "
-             "Used for testing (default=0)"),
-    cl::init(0), cl::cat(DebugCat));
+  cl::opt<unsigned> MakeConcreteSymbolic(
+      "make-concrete-symbolic",
+      cl::desc("Probabilistic rate at which to make concrete reads symbolic, "
+              "i.e. approximately 1 in n concrete reads will be made symbolic "
+              "(0=off, 1=all).  "
+              "Used for testing (default=0)"),
+      cl::init(0), 
+      cl::cat(DebugCat));
 
-cl::opt<unsigned> MaxTests(
-    "max-tests",
-    cl::desc("Stop execution after generating the given number of tests. Extra "
-             "tests corresponding to partially explored paths will also be "
-             "dumped.  Set to 0 to disable (default=0)"),
-    cl::init(0), cl::cat(TerminationCat));
+  cl::opt<unsigned> MaxTests(
+      "max-tests",
+      cl::desc("Stop execution after generating the given number of tests. Extra "
+              "tests corresponding to partially explored paths will also be dumped.  "
+              "Set to 0 to disable (default=0)"),
+      cl::init(0), 
+      cl::cat(TerminationCat));
 
-cl::opt<bool>
-    Watchdog("watchdog",
-             cl::desc("Use a watchdog process to enforce --max-time."),
-             cl::init(0), cl::cat(TerminationCat));
+  cl::opt<bool> Watchdog(
+      "watchdog",
+      cl::desc("Use a watchdog process to enforce --max-time."),
+      cl::init(0), 
+      cl::cat(TerminationCat));
 
-cl::opt<bool> Libcxx(
-    "libcxx",
-    cl::desc("Link the llvm libc++ library into the bitcode (default=false)"),
-    cl::init(false), cl::cat(LinkCat));
+  cl::opt<bool> Libcxx(
+      "libcxx",
+      cl::desc("Link the llvm libc++ library into the bitcode (default=false)"),
+      cl::init(false), 
+      cl::cat(LinkCat));
 } // namespace
 
 namespace klee {
@@ -452,14 +470,9 @@ KleeHandler::KleeHandler(int argc, char **argv)
   bool dir_given = OutputDir != "";
   SmallString<128> directory(dir_given ? OutputDir : InputFile);
 
-  if (!dir_given)
+  if (!dir_given) 
     sys::path::remove_filename(directory);
-#if LLVM_VERSION_CODE < LLVM_VERSION(3, 5)
-  error_code ec;
-  if ((ec = sys::fs::make_absolute(directory)) != errc::success) {
-#else
   if (auto ec = sys::fs::make_absolute(directory)) {
-#endif
     klee_error("unable to determine absolute path: %s", ec.message().c_str());
   }
 
@@ -478,10 +491,7 @@ KleeHandler::KleeHandler(int argc, char **argv)
       llvm::sys::path::append(d, "klee-out-");
       raw_svector_ostream ds(d);
       ds << i;
-// SmallString is always up-to-date, no need to flush. See Support/raw_ostream.h
-#if LLVM_VERSION_CODE < LLVM_VERSION(3, 8)
-      ds.flush();
-#endif
+      // SmallString is always up-to-date, no need to flush. See Support/raw_ostream.h
 
       // create directory and try to link klee-last
       if (mkdir(d.c_str(), 0775) == 0) {
@@ -1503,11 +1513,7 @@ void KleeHandler::loadPathFile(std::string name, std::vector<bool> &buffer) {
 
 void KleeHandler::getKTestFilesInDir(std::string directoryPath,
                                      std::vector<std::string> &results) {
-#if LLVM_VERSION_CODE < LLVM_VERSION(3, 5)
-  error_code ec;
-#else
   std::error_code ec;
-#endif
   llvm::sys::fs::directory_iterator i(directoryPath, ec), e;
   for (; i != e && !ec; i.increment(ec)) {
     auto f = i->path();
@@ -2056,9 +2062,10 @@ preparePOSIX(std::vector<std::unique_ptr<llvm::Module>> &loadedModules,
   // link against a libc implementation. Preparing for libc linking (i.e.
   // linking with uClibc will expect a main function and rename it to
   // _user_main. We just provide the definition here.
-  if (!libCPrefix.empty())
-    mainFn->getParent()->getOrInsertFunction(EntryPoint,
-                                             mainFn->getFunctionType());
+  if (!libCPrefix.empty() && !mainFn->getParent()->getFunction(EntryPoint))
+    llvm::Function::Create(mainFn->getFunctionType(),
+                           llvm::Function::ExternalLinkage, EntryPoint,
+                           mainFn->getParent());
 
   llvm::Function *wrapper = nullptr;
   for (auto &module : loadedModules) {
@@ -2084,48 +2091,106 @@ static const char *modelledExternals[] = {
     "_ZTVN10__cxxabiv121__vmi_class_type_infoE",
 
     // special functions
-    "_stdio_init", "_assert", "__assert_fail", "__assert_rtn",
-    "__errno_location", "__error", "calloc", "_exit", "exit", "free", "abort",
-    "klee_abort", "klee_assume", "klee_allow_access",
-    "klee_check_memory_access", "klee_define_fixed_object",
-    "klee_forbid_access", "klee_get_errno", "klee_get_valuef",
-    "klee_get_valued", "klee_get_valuel", "klee_get_valuell",
-    "klee_get_value_i32", "klee_get_value_i64", "klee_get_value_u64", "klee_get_obj_size",
-    "klee_induce_invariants", "klee_intercept_reads", "klee_intercept_writes",
-    "klee_is_symbolic", "klee_make_symbolic", "klee_mark_global",
-    "klee_open_merge", "klee_close_merge", "klee_prefer_cex",
-    "klee_posix_prefer_cex", "klee_print_expr", "klee_print_range",
-    "klee_report_error", "klee_set_forking", "klee_silent_exit", "klee_warning",
-    "klee_warning_once", "klee_alias_function", "klee_alias_function_regex",
-    "klee_alias_undo", "klee_stack_trace",
+    "_stdio_init",
+    "_assert",
+    "__assert_fail",
+    "__assert_rtn",
+    "__errno_location",
+    "__error",
+    "calloc",
+    "_exit",
+    "exit",
+    "free",
+    "abort",
+    "klee_abort",
+    "klee_assume",
+    "klee_allow_access",
+    "klee_check_memory_access",
+    "klee_define_fixed_object",
+    "klee_forbid_access",
+    "klee_get_errno",
+    "klee_get_valuef",
+    "klee_get_valued",
+    "klee_get_valuel",
+    "klee_get_valuell",
+    "klee_get_value_i32",
+    "klee_get_value_i64",
+    "klee_get_value_u64",
+    "klee_get_obj_size",
+    "klee_induce_invariants",
+    "klee_intercept_reads",
+    "klee_intercept_writes",
+    "klee_is_symbolic",
+    "klee_make_symbolic",
+    "klee_mark_global",
+    "klee_open_merge",
+    "klee_close_merge",
+    "klee_prefer_cex",
+    "klee_posix_prefer_cex",
+    "klee_print_expr",
+    "klee_print_range",
+    "klee_report_error",
+    "klee_set_forking",
+    "klee_silent_exit",
+    "klee_warning",
+    "klee_warning_once",
+    "klee_alias_function",
+    "klee_alias_function_regex",
+    "klee_alias_undo",
+    "klee_stack_trace",
 
     /* tracing functions */
-    "klee_trace_extra_val_u32", "klee_trace_extra_ptr",
-    "klee_trace_extra_ptr_field", "klee_trace_extra_ptr_nested_field",
+    "klee_trace_extra_val_u32",
+    "klee_trace_extra_ptr",
+    "klee_trace_extra_ptr_field",
+    "klee_trace_extra_ptr_nested_field",
     "klee_trace_extra_ptr_nested_nested_field",
 
-    "klee_trace_param_u16", "klee_trace_param_u32", "klee_trace_param_i32",
-    "klee_trace_param_u64", "klee_trace_param_i64",
+    "klee_trace_param_u16",
+    "klee_trace_param_u32",
+    "klee_trace_param_i32",
+    "klee_trace_param_u64",
+    "klee_trace_param_i64",
 
-    "klee_trace_param_ptr", "klee_trace_param_ptr_field",
-    "klee_trace_param_ptr_directed", "klee_trace_param_ptr_field_directed",
-    "klee_trace_param_ptr_field_just_ptr", "klee_trace_param_ptr_nested_field",
+    "klee_trace_param_ptr",
+    "klee_trace_param_ptr_field",
+    "klee_trace_param_ptr_directed",
+    "klee_trace_param_ptr_field_directed",
+    "klee_trace_param_ptr_field_just_ptr",
+    "klee_trace_param_ptr_nested_field",
     "klee_trace_param_ptr_nested_field_directed",
 
-    "klee_trace_param_fptr", "klee_trace_param_just_ptr",
+    "klee_trace_param_fptr",
+    "klee_trace_param_just_ptr",
     "klee_trace_param_tagged_ptr",
 
-    "klee_trace_ret", "klee_trace_ret_ptr", "klee_trace_ret_ptr_field",
+    "klee_trace_ret",
+    "klee_trace_ret_ptr",
+    "klee_trace_ret_ptr_field",
 
     "klee_map_symbol_names",
 
     /* tracing functions end */
 
-    "llvm.dbg.declare", "llvm.dbg.value", "llvm.va_start", "llvm.va_end",
-    "malloc", "realloc", "memalign", "_ZdaPv", "_ZdlPv", "_Znaj", "_Znwj",
-    "_Znam", "_Znwm", "__ubsan_handle_add_overflow",
-    "__ubsan_handle_sub_overflow", "__ubsan_handle_mul_overflow",
-    "__ubsan_handle_divrem_overflow", "__ubsan_handle_negate_overflow"};
+    "llvm.dbg.declare",
+    "llvm.dbg.value",
+    "llvm.va_start",
+    "llvm.va_end",
+    "malloc",
+    "realloc",
+    "memalign",
+    "_ZdaPv",
+    "_ZdlPv",
+    "_Znaj",
+    "_Znwj",
+    "_Znam",
+    "_Znwm",
+    "__ubsan_handle_add_overflow",
+    "__ubsan_handle_sub_overflow",
+    "__ubsan_handle_mul_overflow",
+    "__ubsan_handle_divrem_overflow",
+    "__ubsan_handle_negate_overflow"
+};
 
 // Symbols we aren't going to warn about
 static const char *dontCareExternals[] = {
@@ -2317,7 +2382,7 @@ static void interrupt_handle_watchdog() {
 // the state data before going ahead and killing it.
 static void halt_via_gdb(int pid) {
   char buffer[256];
-  sprintf(buffer,
+  snprintf(buffer, sizeof(buffer),
           "gdb --batch --eval-command=\"p halt_execution()\" "
           "--eval-command=detach --pid=%d &> /dev/null",
           pid);
@@ -2378,7 +2443,7 @@ createLibCWrapper(std::vector<std::unique_ptr<llvm::Module>> &modules,
   if (!libcMainFn)
     klee_error("Could not add %s wrapper", libcMainFunction.str().c_str());
 
-  auto inModuleRefernce = libcMainFn->getParent()->getOrInsertFunction(
+  auto inModuleReference = libcMainFn->getParent()->getOrInsertFunction(
       userMainFn->getName(), userMainFn->getFunctionType());
 
   const auto ft = libcMainFn->getFunctionType();
@@ -2398,9 +2463,14 @@ createLibCWrapper(std::vector<std::unique_ptr<llvm::Module>> &modules,
   BasicBlock *bb = BasicBlock::Create(ctx, "entry", stub);
   llvm::IRBuilder<> Builder(bb);
 
-  std::vector<llvm::Value *> args;
-  args.push_back(
-      llvm::ConstantExpr::getBitCast(inModuleRefernce, ft->getParamType(0)));
+  std::vector<llvm::Value*> args;
+  args.push_back(llvm::ConstantExpr::getBitCast(
+#if LLVM_VERSION_CODE >= LLVM_VERSION(9, 0)
+      cast<llvm::Constant>(inModuleReference.getCallee()),
+#else
+      inModuleReference,
+#endif
+      ft->getParamType(0)));
   args.push_back(&*(stub->arg_begin())); // argc
   auto arg_it = stub->arg_begin();
   args.push_back(&*(++arg_it));                                // argv
@@ -2605,8 +2675,8 @@ int main(int argc, char **argv, char **envp) {
   for (const auto &library : LinkLibraries) {
     if (!klee::loadFile(library, mainModule->getContext(), loadedModules,
                         errorMsg))
-      klee_error("error loading free standing support '%s': %s",
-                 library.c_str(), errorMsg.c_str());
+      klee_error("error loading bitcode library '%s': %s", library.c_str(),
+                 errorMsg.c_str());
   }
 
   // FIXME: Change me to std types.

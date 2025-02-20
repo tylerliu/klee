@@ -12,7 +12,6 @@
 #include "../Expr/ArrayExprOptimizer.h"
 #include "Context.h"
 #include "CoreStats.h"
-#include "ExecutorTimerInfo.h"
 #include "ExternalDispatcher.h"
 #include "ImpliedValue.h"
 #include "Memory.h"
@@ -28,7 +27,11 @@
 #include "klee/Common.h"
 #include "klee/Config/Version.h"
 #include "klee/ExecutionState.h"
-#include "klee/Expr.h"
+#include "klee/Expr/Assignment.h"
+#include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprPPrinter.h"
+#include "klee/Expr/ExprSMTLIBPrinter.h"
+#include "klee/Expr/ExprUtil.h"
 #include "klee/Internal/ADT/KTest.h"
 #include "klee/Internal/ADT/RNG.h"
 #include "klee/Internal/Module/Cell.h"
@@ -43,19 +46,16 @@
 #include "klee/Internal/System/Time.h"
 #include "klee/Interpreter.h"
 #include "klee/OptionCategories.h"
-#include "klee/SolverCmdLine.h"
-#include "klee/SolverStats.h"
+#include "klee/Solver/SolverCmdLine.h"
+#include "klee/Solver/SolverStats.h"
 #include "klee/TimerStatIncrementer.h"
-#include "klee/util/Assignment.h"
-#include "klee/util/ExprPPrinter.h"
-#include "klee/util/ExprSMTLIBPrinter.h"
-#include "klee/util/ExprUtil.h"
 #include "klee/util/GetElementPtrTypeIterator.h"
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
@@ -63,6 +63,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include <llvm/IR/Dominators.h>
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
@@ -70,17 +71,11 @@
 #include "llvm/Support/Process.h"
 #include "llvm/Support/raw_ostream.h"
 
-#if LLVM_VERSION_CODE < LLVM_VERSION(3, 5)
-#include "llvm/Support/CallSite.h"
-#else
-#include "llvm/IR/CallSite.h"
-#endif
-
 
 //TODO: generalize for other LLVM versions like the above
 #include <llvm/Analysis/LoopInfo.h>
-#include <llvm/IR/Dominators.h>
 
+#include <algorithm>
 #include <cassert>
 #include <cerrno>
 #include <cxxabi.h>
@@ -114,6 +109,13 @@ cl::OptionCategory
 cl::OptionCategory TestGenCat("Test generation options",
                               "These options impact test generation.");
 
+cl::opt<std::string> MaxTime(
+    "max-time",
+    cl::desc("Halt execution after the specified duration.  "
+             "Set to 0s to disable (default=0s)"),
+    cl::init("0s"),
+    cl::cat(TerminationCat));
+    
 } // namespace klee
 
 namespace {
@@ -323,12 +325,6 @@ cl::opt<unsigned> RuntimeMaxStackFrames(
     cl::init(8192),
     cl::cat(TerminationCat));
 
-cl::opt<std::string> MaxInstructionTime(
-    "max-instruction-time",
-    cl::desc("Allow a single instruction to take only this much time.  Enables "
-             "--use-forked-solver.  Set to 0s to disable (default=0s)"),
-    cl::cat(TerminationCat));
-
 cl::opt<double> MaxStaticForkPct(
     "max-static-fork-pct", cl::init(1.),
     cl::desc("Maximum percentage spent by an instruction forking out of the "
@@ -354,6 +350,13 @@ cl::opt<double> MaxStaticCPSolvePct(
     cl::desc("Maximum percentage of solving time that can be spent by a single "
              "instruction of a call path over total solving time for all "
              "instructions (default=1.0 (always))"),
+    cl::cat(TerminationCat));
+
+cl::opt<std::string> TimerInterval(
+    "timer-interval",
+    cl::desc("Minimum interval to check timers. "
+             "Affects -max-time, -istats-write-interval, -stats-write-interval, and -uncovered-update-interval (default=1s)"),
+    cl::init("1s"),
     cl::cat(TerminationCat));
 
 
@@ -435,6 +438,10 @@ namespace klee {
   RNG theRNG;
 }
 
+// XXX hack
+extern "C" unsigned dumpStates, dumpPTree;
+unsigned dumpStates = 0, dumpPTree = 0;
+
 const char *Executor::TerminateReasonNames[] = {
   [ Abort ] = "abort",
   [ Assert ] = "assert",
@@ -452,22 +459,25 @@ const char *Executor::TerminateReasonNames[] = {
   [ Unhandled ] = "xxx",
 };
 
+
 Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
                    InterpreterHandler *ih)
     : Interpreter(opts), interpreterHandler(ih), searcher(0),
       externalDispatcher(new ExternalDispatcher(ctx)), statsTracker(0),
-      pathWriter(0), symPathWriter(0), specialFunctionHandler(0),
-      processTree(0), replayKTest(0), replayPath(0), usingSeeds(0),
+      pathWriter(0), symPathWriter(0), specialFunctionHandler(0), timers{time::Span(TimerInterval)},
+      replayKTest(0), replayPath(0), usingSeeds(0),
       atMemoryLimit(false), inhibitForking(false), haltExecution(false),
       ivcEnabled(false), debugLogBuffer(debugBufferString) {
 
 
-  const time::Span maxCoreSolverTime(MaxCoreSolverTime);
-  maxInstructionTime = time::Span(MaxInstructionTime);
-  coreSolverTimeout = maxCoreSolverTime && maxInstructionTime ?
-                      std::min(maxCoreSolverTime, maxInstructionTime)
-                    : std::max(maxCoreSolverTime, maxInstructionTime);
+  const time::Span maxTime{MaxTime};
+  if (maxTime) timers.add(
+        std::make_unique<Timer>(maxTime, [&]{
+        klee_message("HaltTimer invoked");
+        setHaltExecution(true);
+      }));
 
+  coreSolverTimeout = time::Span{MaxCoreSolverTime};
   if (coreSolverTimeout) UseForkedCoreSolver = true;
   Solver *coreSolver = klee::createCoreSolver(CoreSolverToUse);
   if (!coreSolver) {
@@ -578,14 +588,9 @@ Executor::setModule(std::vector<std::unique_ptr<llvm::Module>> &modules,
 Executor::~Executor() {
   delete memory;
   delete externalDispatcher;
-  delete processTree;
   delete specialFunctionHandler;
   delete statsTracker;
   delete solver;
-  while(!timers.empty()) {
-    delete timers.back();
-    timers.pop_back();
-  }
 }
 
 /***/
@@ -623,11 +628,7 @@ void Executor::initializeGlobalObject(ExecutionState &state, ObjectState *os,
     for (unsigned i=0, e=cds->getNumElements(); i != e; ++i)
       initializeGlobalObject(state, os, cds->getElementAsConstant(i),
                              offset + i*elementSize);
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 8)
   } else if (!isa<UndefValue>(c) && !isa<MetadataAsValue>(c)) {
-#else
-  } else if (!isa<UndefValue>(c)) {
-#endif
     unsigned StoreBits = targetData->getTypeStoreSizeInBits(c->getType());
     ref<ConstantExpr> C = evalConstant(c);
 
@@ -814,6 +815,9 @@ void Executor::initializeGlobals(ExecutionState &state) {
   }
 
   // once all objects are allocated, do the actual initialization
+  // remember constant objects to initialise their counter part for external
+  // calls
+  std::vector<ObjectState *> constantObjects;
   for (Module::const_global_iterator i = m->global_begin(),
          e = m->global_end();
        i != e; ++i) {
@@ -825,8 +829,19 @@ void Executor::initializeGlobals(ExecutionState &state) {
       ObjectState *wos = state.addressSpace.getWriteable(mo, os);
       
       initializeGlobalObject(state, wos, i->getInitializer(), 0);
-      // if(i->isConstant()) os->setReadOnly(true);
+      if (i->isConstant())
+        constantObjects.emplace_back(wos);
     }
+  }
+
+  // initialise constant memory that is potentially used with external calls
+  if (!constantObjects.empty()) {
+    // initialise the actual memory with constant values
+    state.addressSpace.copyOutConcretes();
+
+    // mark constant objects as read-only
+    for (auto obj : constantObjects)
+      obj->setReadOnly(true);
   }
 }
 
@@ -856,11 +871,7 @@ void Executor::branch(ExecutionState &state,
       ExecutionState *ns = es->branch();
       addedStates.push_back(ns);
       result.push_back(ns);
-      es->ptreeNode->data = 0;
-      std::pair<PTree::Node*,PTree::Node*> res = 
-        processTree->split(es->ptreeNode, ns, es);
-      ns->ptreeNode = res.first;
-      es->ptreeNode = res.second;
+      processTree->attach(es->ptreeNode, ns, es);
     }
   }
 
@@ -1108,11 +1119,7 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
       }
     }
 
-    current.ptreeNode->data = 0;
-    std::pair<PTree::Node*, PTree::Node*> res =
-      processTree->split(current.ptreeNode, falseState, trueState);
-    falseState->ptreeNode = res.first;
-    trueState->ptreeNode = res.second;
+    processTree->attach(current.ptreeNode, falseState, trueState);
 
     if (pathWriter) {
       // Need to update the pathOS.id field of falseState, otherwise the same id
@@ -1354,6 +1361,28 @@ void Executor::stepInstruction(ExecutionState &state) {
     haltExecution = true;
 }
 
+static inline const llvm::fltSemantics *fpWidthToSemantics(unsigned width) {
+  switch (width) {
+#if LLVM_VERSION_CODE >= LLVM_VERSION(4, 0)
+  case Expr::Int32:
+    return &llvm::APFloat::IEEEsingle();
+  case Expr::Int64:
+    return &llvm::APFloat::IEEEdouble();
+  case Expr::Fl80:
+    return &llvm::APFloat::x87DoubleExtended();
+#else
+  case Expr::Int32:
+    return &llvm::APFloat::IEEEsingle;
+  case Expr::Int64:
+    return &llvm::APFloat::IEEEdouble;
+  case Expr::Fl80:
+    return &llvm::APFloat::x87DoubleExtended;
+#endif
+  default:
+    return 0;
+  }
+}
+
 void Executor::executeCall(ExecutionState &state, 
                            KInstruction *ki,
                            Function *f,
@@ -1368,9 +1397,22 @@ void Executor::executeCall(ExecutionState &state,
       // state may be destroyed by this call, cannot touch
       callExternalFunction(state, ki, f, arguments);
       break;
-        
-      // va_arg is handled by caller and intrinsic lowering, see comment for
-      // ExecutionState::varargs
+    case Intrinsic::fabs: {
+      ref<ConstantExpr> arg =
+          toConstant(state, eval(ki, 0, state).value, "floating point");
+      if (!fpWidthToSemantics(arg->getWidth()))
+        return terminateStateOnExecError(
+            state, "Unsupported intrinsic llvm.fabs call");
+
+      llvm::APFloat Res(*fpWidthToSemantics(arg->getWidth()),
+                        arg->getAPValue());
+      Res = llvm::abs(Res);
+
+      bindLocal(ki, state, ConstantExpr::alloc(Res.bitcastToAPInt()));
+      break;
+    }
+    // va_arg is handled by caller and intrinsic lowering, see comment for
+    // ExecutionState::varargs
     case Intrinsic::vastart:  {
       StackFrame &sf = state.stack.back();
 
@@ -1600,7 +1642,7 @@ void Executor::transferToBasicBlock(BasicBlock *dst, BasicBlock *src,
   handleLoopAnalysis(dst, src, state);
 }
 
-/// Compute the true target of a function call, resolving LLVM and KLEE aliases
+/// Compute the true target of a function call, resolving LLVM aliases
 /// and bitcasts.
 Function* Executor::getTargetFunction(Value *calledVal, ExecutionState &state) {
   SmallPtrSet<const GlobalValue*, 3> Visited;
@@ -1611,23 +1653,9 @@ Function* Executor::getTargetFunction(Value *calledVal, ExecutionState &state) {
 
   while (true) {
     if (GlobalValue *gv = dyn_cast<GlobalValue>(c)) {
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 6)
       if (!Visited.insert(gv).second)
         return 0;
-#else
-      if (!Visited.insert(gv))
-        return 0;
-#endif
-      std::string alias = state.getFnAlias(gv->getName());
-      if (alias != "") {
-        GlobalValue *old_gv = gv;
-        gv = kmodule->module->getNamedValue(alias);
-        if (!gv) {
-          klee_error("Function %s(), alias for %s not found!\n", alias.c_str(),
-                     old_gv->getName().str().c_str());
-        }
-      }
-     
+
       if (Function *f = dyn_cast<Function>(gv))
         return f;
       else if (GlobalAlias *ga = dyn_cast<GlobalAlias>(gv))
@@ -2001,21 +2029,16 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       // Handle possible different branch targets
 
       // We have the following assumptions:
-      // - each case value is mutual exclusive to all other values including the
-      //   default value
+      // - each case value is mutual exclusive to all other values
       // - order of case branches is based on the order of the expressions of
-      //   the scase values, still default is handled last
+      //   the case values, still default is handled last
       std::vector<BasicBlock *> bbOrder;
       std::map<BasicBlock *, ref<Expr> > branchTargets;
 
       std::map<ref<Expr>, BasicBlock *> expressionOrder;
 
       // Iterate through all non-default cases and order them by expressions
-      #if LLVM_VERSION_CODE > LLVM_VERSION(3, 4)
-        for (auto i : si->cases()) {
-      #else
-        for (SwitchInst::CaseIt i = si->case_begin(), e = si->case_end(); i != e; ++i) {
-      #endif
+      for (auto i : si->cases()) {
         ref<Expr> value = evalConstant(i.getCaseValue());
 
         BasicBlock *caseSuccessor = i.getCaseSuccessor();
@@ -2031,6 +2054,10 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
                itE = expressionOrder.end();
            it != itE; ++it) {
         ref<Expr> match = EqExpr::create(cond, it->first);
+
+        // skip if case has same successor basic block as default case
+        // (should work even with phi nodes as a switch is a single terminating instruction)
+        if (it->second == si->getDefaultDest()) continue;
 
         // Make sure that the default value does not contain this target's value
         defaultValue = AndExpr::create(defaultValue, Expr::createIsZero(match));
@@ -2641,13 +2668,8 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         !fpWidthToSemantics(right->getWidth()))
       return terminateStateOnExecError(state, "Unsupported FRem operation");
     llvm::APFloat Res(*fpWidthToSemantics(left->getWidth()), left->getAPValue());
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 8)
     Res.mod(
         APFloat(*fpWidthToSemantics(right->getWidth()), right->getAPValue()));
-#else
-    Res.mod(APFloat(*fpWidthToSemantics(right->getWidth()),right->getAPValue()),
-            APFloat::rmNearestTiesToEven);
-#endif
     bindLocal(ki, state, ConstantExpr::alloc(Res.bitcastToAPInt()));
     break;
   }
@@ -2997,12 +3019,6 @@ void Executor::updateStates(ExecutionState *current) {
     delete es;
   }
   removedStates.clear();
-
-  if (searcher) {
-    searcher->update(nullptr, continuedStates, pausedStates);
-    pausedStates.clear();
-    continuedStates.clear();
-  }
 }
 
 template <typename TypeIt>
@@ -3129,9 +3145,8 @@ void Executor::doDumpStates() {
 void Executor::run(ExecutionState &initialState) {
   bindModuleConstants();
 
-  // Delay init till now so that ticks don't accrue during
-  // optimization and such.
-  initTimers();
+  // Delay init till now so that ticks don't accrue during optimization and such.
+  timers.reset();
 
   states.insert(&initialState);
 
@@ -3156,13 +3171,14 @@ void Executor::run(ExecutionState &initialState) {
       if (it == seedMap.end())
         it = seedMap.begin();
       lastState = it->first;
-      unsigned numSeeds = it->second.size();
       ExecutionState &state = *lastState;
       KInstruction *ki = state.pc;
       stepInstruction(state);
 
       executeInstruction(state, ki);
-      processTimers(&state, maxInstructionTime * numSeeds);
+      timers.invoke();
+      if (::dumpStates) dumpStates();
+      if (::dumpPTree) dumpPTree();
       updateStates(&state);
 
       if ((stats::instructions % 1000) == 0) {
@@ -3191,14 +3207,6 @@ void Executor::run(ExecutionState &initialState) {
 
     klee_message("seeding done (%d states remain)", (int) states.size());
 
-    // XXX total hack, just because I like non uniform better but want
-    // seed results to be equally weighted.
-    for (std::set<ExecutionState*>::iterator
-           it = states.begin(), ie = states.end();
-         it != ie; ++it) {
-      (*it)->weight = 1.;
-    }
-
     if (OnlySeed) {
       doDumpStates();
       return;
@@ -3216,7 +3224,9 @@ void Executor::run(ExecutionState &initialState) {
     stepInstruction(state);
 
     executeInstruction(state, ki);
-    processTimers(&state, maxInstructionTime);
+    timers.invoke();
+    if (::dumpStates) dumpStates();
+    if (::dumpPTree) dumpPTree();
 
     checkMemoryUsage();
 
@@ -3279,29 +3289,6 @@ std::string Executor::getAddressInfo(ExecutionState &state,
   return info.str();
 }
 
-void Executor::pauseState(ExecutionState &state){
-  auto it = std::find(continuedStates.begin(), continuedStates.end(), &state);
-  // If the state was to be continued, but now gets paused again
-  if (it != continuedStates.end()){
-    // ...just don't continue it
-    std::swap(*it, continuedStates.back());
-    continuedStates.pop_back();
-  } else {
-    pausedStates.push_back(&state);
-  }
-}
-
-void Executor::continueState(ExecutionState &state){
-  auto it = std::find(pausedStates.begin(), pausedStates.end(), &state);
-  // If the state was to be paused, but now gets continued again
-  if (it != pausedStates.end()){
-    // ...don't pause it
-    std::swap(*it, pausedStates.back());
-    pausedStates.pop_back();
-  } else {
-    continuedStates.push_back(&state);
-  }
-}
 
 void Executor::terminateState(ExecutionState &state) {
   if (replayKTest && replayPosition!=replayKTest->numObjects) {
@@ -4200,11 +4187,9 @@ void Executor::runFunctionAsMain(Function *f,
   
   initializeGlobals(*state);
 
-  processTree = new PTree(state);
-  state->ptreeNode = processTree->root;
+  processTree = std::make_unique<PTree>(state);
   run(*state);
-  delete processTree;
-  processTree = 0;
+  processTree = nullptr;
 
   // hack to clear memory objects
   kmodule->clearAnalysedLoops(); //Must be called before delete memry;
@@ -4280,7 +4265,7 @@ bool Executor::getSymbolicSolution(const ExecutionState &state,
   // an example) While this process can be very expensive, it can
   // also make understanding individual test cases much easier.
   for (unsigned i = 0; i != state.symbolics.size(); ++i) {
-    const MemoryObject *mo = state.symbolics[i].first;
+    const auto &mo = state.symbolics[i].first;
     std::vector< ref<Expr> >::const_iterator pi = 
       mo->cexPreferences.begin(), pie = mo->cexPreferences.end();
     for (; pi != pie; ++pi) {
@@ -4455,12 +4440,72 @@ void Executor::prepareForEarlyExit() {
 
 /// Returns the errno location in memory
 int *Executor::getErrnoLocation(const ExecutionState &state) const {
-#ifndef __APPLE__
+#if !defined(__APPLE__) && !defined(__FreeBSD__)
   /* From /usr/include/errno.h: it [errno] is a per-thread variable. */
   return __errno_location();
 #else
   return __error();
 #endif
+}
+
+
+void Executor::dumpPTree() {
+  if (!::dumpPTree) return;
+
+  char name[32];
+  snprintf(name, sizeof(name),"ptree%08d.dot", (int) stats::instructions);
+  auto os = interpreterHandler->openOutputFile(name);
+  if (os) {
+    processTree->dump(*os);
+  }
+
+  ::dumpPTree = 0;
+}
+
+void Executor::dumpStates() {
+  if (!::dumpStates) return;
+
+  auto os = interpreterHandler->openOutputFile("states.txt");
+
+  if (os) {
+    for (ExecutionState *es : states) {
+      *os << "(" << es << ",";
+      *os << "[";
+      auto next = es->stack.begin();
+      ++next;
+      for (auto sfIt = es->stack.begin(), sf_ie = es->stack.end();
+           sfIt != sf_ie; ++sfIt) {
+        *os << "('" << sfIt->kf->function->getName().str() << "',";
+        if (next == es->stack.end()) {
+          *os << es->prevPC->info->line << "), ";
+        } else {
+          *os << next->caller->info->line << "), ";
+          ++next;
+        }
+      }
+      *os << "], ";
+
+      StackFrame &sf = es->stack.back();
+      uint64_t md2u = computeMinDistToUncovered(es->pc,
+                                                sf.minDistToUncoveredOnReturn);
+      uint64_t icnt = theStatisticManager->getIndexedValue(stats::instructions,
+                                                           es->pc->info->id);
+      uint64_t cpicnt = sf.callPathNode->statistics.getValue(stats::instructions);
+
+      *os << "{";
+      *os << "'depth' : " << es->depth << ", ";
+      *os << "'queryCost' : " << es->queryCost << ", ";
+      *os << "'coveredNew' : " << es->coveredNew << ", ";
+      *os << "'instsSinceCovNew' : " << es->instsSinceCovNew << ", ";
+      *os << "'md2u' : " << md2u << ", ";
+      *os << "'icnt' : " << icnt << ", ";
+      *os << "'CPicnt' : " << cpicnt << ", ";
+      *os << "}";
+      *os << ")\n";
+    }
+  }
+
+  ::dumpStates = 0;
 }
 
 ///

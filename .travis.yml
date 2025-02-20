@@ -12,9 +12,9 @@ env:
     ###########################################################################
 
     # Check a subset of the matrix of:
-    #   LLVM  : {3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 4.0, 5.0, 6.0, 7}
+    #   LLVM  : {3.8, 3.9, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0}
     #   SOLVERS : {Z3, STP, STP:Z3, metaSMT}
-    #   STP_VERSION   : {2.1.2, master}
+    #   STP_VERSION   : {2.3.3, master}
     #   METASMT_VERSION : {v4.rc1}
     #   METASMT_DEFAULT : {BTOR, CVC4, STP, YICES2, Z3}
     #   METASMT_BOOST_VERSION : {x.y.z} // e.g. 1.60.0, libboost-dev will be used if unspecified
@@ -32,7 +32,7 @@ env:
     - secure: DQAEQWJblXvIztN/sgH63OtFncI+Qju6wRy1zIV/iLf5KbAmLs1h3itU7EsE/+3+LgV1MVQ5QNJDBUj17A6VHRKNaQ5qnIllTAcC3o0nPDohQkQoCgDG8HZ+M4wtVfr7q2K6byEPB2UbSH+mEjSMTihJufgBBVfKyyozAfYycjg=
 
     # Default configuration for all Travis-CI jobs. They are overriden by each job.
-    - BASE_IMAGE: ubuntu:xenial-20181005
+    - BASE_IMAGE: ubuntu:bionic-20200112
     - REPOSITORY: klee
 
     - COVERAGE: 0
@@ -40,8 +40,9 @@ env:
     - ENABLE_OPTIMIZED: 1
     - ENABLE_DEBUG: 1
     - GTEST_VERSION: 1.7.0
+    - KLEE_RUNTIME_BUILD: "Debug+Asserts"
     - LLVM_VERSION: 6.0
-    - METASMT_VERSION: v4.rc1
+    - METASMT_VERSION: qf_abv
     - MINISAT_VERSION: "master"
     - REQUIRES_RTTI: 0
     - SANITIZER_BUILD:
@@ -55,6 +56,8 @@ env:
 
     matrix:
     # Check supported LLVM versions
+    - LLVM_VERSION=10.0
+    - LLVM_VERSION=9.0
     - LLVM_VERSION=8.0
     - LLVM_VERSION=7.0
     - LLVM_VERSION=6.0
@@ -62,10 +65,6 @@ env:
     - LLVM_VERSION=4.0
     - LLVM_VERSION=3.9
     - LLVM_VERSION=3.8
-    - LLVM_VERSION=3.7
-    - LLVM_VERSION=3.6 USE_LIBCXX=0
-    - LLVM_VERSION=3.5 USE_LIBCXX=0
-    - LLVM_VERSION=3.4 USE_LIBCXX=0
 
     # *Sanitizer builds. Do unoptimized build otherwise the optimizer might remove problematic code
     - SANITIZER_BUILD=address ENABLE_OPTIMIZED=0 USE_TCMALLOC=0
@@ -89,8 +88,8 @@ env:
     # Check at least one build with Asserts disabled.
     - SOLVERS=STP DISABLE_ASSERTIONS=1
 
-    # Check without TCMALLOC
-    - USE_TCMALLOC=0
+    # Check without TCMALLOC and with an optimised runtime library
+    - USE_TCMALLOC=0 KLEE_RUNTIME_BUILD="Release+Debug+Asserts"
 
     # Coverage build
     - ENABLE_OPTIMIZED=0 COVERAGE=1
@@ -101,8 +100,8 @@ env:
 matrix:
   include:
     - os: osx
-      osx_image: xcode8.3
       env: SOLVERS=STP UCLIBC_VERSION=0 USE_TCMALLOC=0 USE_LIBCXX=0
+    - env: BUILD_DOCKER=1
 addons:
   apt:
     packages:
@@ -117,7 +116,8 @@ before_install:
 
 script:
     # Build KLEE and run tests
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export BASE=/tmp && export PATH="/usr/local/opt/ccache/libexec:/usr/local/bin:$PATH"; scripts/build/build.sh klee --debug --install-system-deps; export DYLD_LIBRARY_PATH=="$(cd ${BASE}/metaSMT-*-deps/stp-git-basic/lib/ && pwd)"; scripts/build/run-tests.sh /tmp/klee_build* --debug; fi
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then scripts/build/build.sh klee --docker --debug --push-docker-deps --create-final-image; fi
-    - if [[ "$COVERAGE" == "1" && "$TRAVIS_OS_NAME" == "linux" ]]; then scripts/build/run-tests.sh --coverage --upload-coverage --run-docker --debug; fi
-    - if [[ "$COVERAGE" == "0" && "$TRAVIS_OS_NAME" == "linux" ]]; then scripts/build/run-tests.sh --run-docker --debug; fi
+    - if [[ "${BUILD_DOCKER}" != "1" && "$TRAVIS_OS_NAME" == "osx" ]]; then export BASE=/tmp && export PATH="/usr/local/opt/ccache/libexec:/usr/local/bin:$PATH"; scripts/build/build.sh klee --debug --install-system-deps; export DYLD_LIBRARY_PATH=="$(cd ${BASE}/metaSMT-*-deps/stp-git-basic/lib/ && pwd)"; scripts/build/run-tests.sh /tmp/klee_build* --debug; fi
+    - if [[ "${BUILD_DOCKER}" != "1" && "$TRAVIS_OS_NAME" == "linux" ]]; then scripts/build/build.sh klee --docker --debug --push-docker-deps --create-final-image; fi
+    - if [[ "${BUILD_DOCKER}" != "1" && "$COVERAGE" == "1" && "$TRAVIS_OS_NAME" == "linux" ]]; then scripts/build/run-tests.sh --coverage --upload-coverage --run-docker --debug; fi
+    - if [[ "${BUILD_DOCKER}" != "1" && "$COVERAGE" == "0" && "$TRAVIS_OS_NAME" == "linux" ]]; then scripts/build/run-tests.sh --run-docker --debug; fi
+    - if [[ "${BUILD_DOCKER}" -eq 1 ]]; then docker build .; fi

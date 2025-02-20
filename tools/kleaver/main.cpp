@@ -7,23 +7,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "expr/Lexer.h"
-#include "expr/Parser.h"
-
 #include "klee/Common.h"
 #include "klee/Config/Version.h"
-#include "klee/Constraints.h"
-#include "klee/Expr.h"
-#include "klee/ExprBuilder.h"
+#include "klee/Expr/Constraints.h"
+#include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
+#include "klee/Expr/ExprPPrinter.h"
+#include "klee/Expr/ExprSMTLIBPrinter.h"
+#include "klee/Expr/ExprVisitor.h"
+#include "klee/Expr/Parser/Lexer.h"
+#include "klee/Expr/Parser/Parser.h"
 #include "klee/Internal/Support/PrintVersion.h"
 #include "klee/OptionCategories.h"
-#include "klee/Solver.h"
-#include "klee/SolverCmdLine.h"
-#include "klee/SolverImpl.h"
+#include "klee/Solver/Solver.h"
+#include "klee/Solver/SolverCmdLine.h"
+#include "klee/Solver/SolverImpl.h"
 #include "klee/Statistics.h"
-#include "klee/util/ExprPPrinter.h"
-#include "klee/util/ExprSMTLIBPrinter.h"
-#include "klee/util/ExprVisitor.h"
 
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/CommandLine.h"
@@ -36,11 +35,6 @@
 
 
 #include "llvm/Support/Signals.h"
-
-#if LLVM_VERSION_CODE < LLVM_VERSION(3, 5)
-#include "llvm/ADT/OwningPtr.h"
-#include "llvm/Support/system_error.h"
-#endif
 
 using namespace llvm;
 using namespace klee;
@@ -409,14 +403,6 @@ int main(int argc, char **argv) {
 
   std::string ErrorStr;
   
-#if LLVM_VERSION_CODE < LLVM_VERSION(3,5)
-  OwningPtr<MemoryBuffer> MB;
-  error_code ec=MemoryBuffer::getFileOrSTDIN(InputFile.c_str(), MB);
-  if (ec) {
-    llvm::errs() << argv[0] << ": error: " << ec.message() << "\n";
-    return 1;
-  }
-#else
   auto MBResult = MemoryBuffer::getFileOrSTDIN(InputFile.c_str());
   if (!MBResult) {
     llvm::errs() << argv[0] << ": error: " << MBResult.getError().message()
@@ -424,7 +410,6 @@ int main(int argc, char **argv) {
     return 1;
   }
   std::unique_ptr<MemoryBuffer> &MB = *MBResult;
-#endif
   
   ExprBuilder *Builder = 0;
   switch (BuilderKind) {

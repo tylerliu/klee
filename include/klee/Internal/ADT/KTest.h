@@ -7,11 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __COMMON_KTEST_H__
-#define __COMMON_KTEST_H__
+#ifndef KLEE_KTEST_H
+#define KLEE_KTEST_H
 
 #include <stdint.h>
-
 
 #ifdef __cplusplus
 extern "C" {
@@ -71,4 +70,4 @@ extern "C" {
 }
 #endif
 
-#endif
+#endif /* KLEE_KTEST_H */

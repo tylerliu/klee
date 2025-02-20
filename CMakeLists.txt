@@ -49,7 +49,7 @@ include(CheckLibraryExists)
 # Project version
 ###############################################################################
 set(KLEE_VERSION_MAJOR 2)
-set(KLEE_VERSION_MINOR 0)
+set(KLEE_VERSION_MINOR 1)
 set(KLEE_VERSION "${KLEE_VERSION_MAJOR}.${KLEE_VERSION_MINOR}")
 
 # If a patch is needed, we can add KLEE_VERSION_PATCH
@@ -226,6 +226,15 @@ foreach (vname ${NEEDED_LLVM_VARS})
   message(STATUS "${vname}: \"${${vname}}\"")
   if (NOT (DEFINED "${vname}"))
     message(FATAL_ERROR "${vname} was not defined")
+  endif()
+endforeach()
+
+set(OPTIONAL_LLVM_VARS
+  LLVM_BUILD_MAIN_SRC_DIR
+)
+foreach (vname ${OPTIONAL_LLVM_VARS})
+  if (${vname})
+    message(STATUS "${vname}: \"${${vname}}\"")
   endif()
 endforeach()
 
@@ -416,6 +425,16 @@ else()
 endif()
 
 ################################################################################
+# Detect SQLite3
+################################################################################
+find_package(SQLite3)
+if (SQLITE3_FOUND)
+  include_directories(${SQLITE3_INCLUDE_DIRS})
+else()
+    message( FATAL_ERROR "SQLite3 not found, please install" )
+endif()
+
+################################################################################
 # Detect libcap
 ################################################################################
 check_include_file("sys/capability.h" HAVE_SYS_CAPABILITY_H)
@@ -424,9 +443,9 @@ if (HAVE_SYS_CAPABILITY_H)
     NAMES cap
     DOC "libcap library"
   )
-# On FreeBSD <sys/capabilities.h> is present in libc, so we don't require libcap there.
-  if (NOT LIBCAP_LIBRARIES AND NOT CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
-    message(FATAL_ERROR "Found \"sys/capability.h\" but could not find libcap")
+# On FreeBSD <sys/capability.h> is a different thing
+  if (NOT LIBCAP_LIBRARIES OR CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+    set(HAVE_SYS_CAPABILITY_H 0)
   endif()
 else()
   set(LIBCAP_LIBRARIES "")
@@ -437,7 +456,8 @@ endif()
 ################################################################################
 check_include_file(pty.h HAVE_PTY_H)
 check_include_file(util.h HAVE_UTIL_H)
-if (HAVE_PTY_H OR HAVE_UTIL_H)
+check_include_file(libutil.h HAVE_LIBUTIL_H)
+if (HAVE_PTY_H OR HAVE_UTIL_H OR HAVE_LIBUTIL_H)
   check_function_exists(openpty openpty_in_libc)
   if (NOT openpty_in_libc)
     check_library_exists(util openpty "" openpty_in_libutil)
@@ -447,7 +467,7 @@ if (HAVE_PTY_H OR HAVE_UTIL_H)
       message(FATAL_ERROR "Could not find libutil")
     endif (openpty_in_libutil)
   endif (NOT openpty_in_libc)
-endif (HAVE_PTY_H OR HAVE_UTIL_H)
+endif (HAVE_PTY_H OR HAVE_UTIL_H OR HAVE_LIBUTIL_H)
 
 ################################################################################
 # Miscellaneous header file detection
@@ -634,7 +654,7 @@ if (ENABLE_KLEE_LIBCXX)
   message(STATUS "Use libc++ include path: \"${KLEE_LIBCXX_INCLUDE_DIR}\"")
 
   # Find the library bitcode archive
-  
+
   # Check for static first
   set(KLEE_LIBCXX_BC_NAME "libc++.bca")
   set(KLEE_LIBCXX_BC_PATH "${KLEE_LIBCXX_DIR}/lib/${KLEE_LIBCXX_BC_NAME}")
@@ -679,7 +699,7 @@ endif()
 ################################################################################
 # Sanitizer support
 ################################################################################
-message(STATUS "${CMAKE_CXX_FLAGS}")
+message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 set(IS_ASAN_BUILD 0)
 set(IS_UBSAN_BUILD 0)
 set(IS_MSAN_BUILD 0)

@@ -83,7 +83,9 @@ public:
   /// prepared for execution.
   void bind();
 
-  bool handle(ExecutionState &state, llvm::Function *f, KInstruction *target,
+  bool handle(ExecutionState &state, 
+              llvm::Function *f, 
+              KInstruction *target,
               std::vector<ref<Expr>> &arguments);
 
   /* Convenience routines */
@@ -92,9 +94,9 @@ public:
 
   /* Handlers */
 
-#define HANDLER(name)                                                          \
-  void name(ExecutionState &state, KInstruction *target,                       \
-            std::vector<ref<Expr>> &arguments)
+#define HANDLER(name) void name(ExecutionState &state, \
+                                KInstruction *target,  \
+                                std::vector<ref<Expr>> &arguments)
   HANDLER(handleAbort);
   HANDLER(handleAssert);
   HANDLER(handleAssertFail);
@@ -178,4 +180,4 @@ public:
 };
 } // namespace klee
 
-#endif
+#endif /* KLEE_SPECIALFUNCTIONHANDLER_H */

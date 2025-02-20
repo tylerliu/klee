@@ -46,12 +46,7 @@ setup_build_variables_llvm() {
     LLVM_BUILD="${LLVM_SRC_BASE}-build${LLVM_SUFFIX}"
     LLVM_INSTALL="${LLVM_SRC_BASE}-install${LLVM_SUFFIX}"
     LLVM_BIN="${LLVM_INSTALL}/bin"
-    if [[ ${LLVM_VERSION_SHORT} -le 37 ]]; then
-      LLVM_BUILDMODE="$BuildMode"
-      LLVM_BUILD_BIN="${LLVM_BUILD}/${LLVM_BUILDMODE}/bin"
-    else
-      LLVM_BUILD_BIN="${LLVM_BUILD}/bin"
-    fi
+    LLVM_BUILD_BIN="${LLVM_BUILD}/bin"
 
     LLVM_CONFIG="${LLVM_BIN}/llvm-config"
     BITCODE_CC="${LLVM_BIN}/clang"
@@ -98,24 +93,26 @@ download_llvm() {
   # Skip step if we already checked out code
   [[ -f "${LLVM_SRC_BASE}/.src_checked_out" ]] && return 0
 
-  # Checkout LLVM code
-  svn co "http://llvm.org/svn/llvm-project/llvm/branches/release_${LLVM_VERSION_SHORT}" "${LLVM_SRC_BASE}"
-  cd "${LLVM_SRC_BASE}/tools" || (echo "Directory does not exist"; exit 1)
-  svn co "http://llvm.org/svn/llvm-project/cfe/branches/release_${LLVM_VERSION_SHORT}" clang
-  cd "${LLVM_SRC_BASE}/projects" || (echo "Directory does not exist"; exit 1)
-  svn co "http://llvm.org/svn/llvm-project/compiler-rt/branches/release_${LLVM_VERSION_SHORT}" compiler-rt
+  source "${DIR}/common-functions"
+  local LLVM_VERSION_MAJOR="${LLVM_VERSION/.*/}"
 
-  if [[ ${LLVM_VERSION_SHORT} -gt 37 ]]; then
-    cd "${LLVM_SRC_BASE}/projects" || (echo "Directory does not exist"; exit 1)
-    svn co "http://llvm.org/svn/llvm-project/libcxx/branches/release_${LLVM_VERSION_SHORT}" libcxx
-    cd "${LLVM_SRC_BASE}/projects" || (echo "Directory does not exist"; exit 1)
-    svn co "http://llvm.org/svn/llvm-project/libcxxabi/branches/release_${LLVM_VERSION_SHORT}" libcxxabi
+  branch_name="release/${LLVM_VERSION_MAJOR}.x"
+  if [[ "${LLVM_VERSION_MAJOR}" -le 3 ]]; then
+    branch_name="release/${LLVM_VERSION}.x"
+  fi
+  git_clone_or_update "https://github.com/llvm/llvm-project.git" "${LLVM_SRC_BASE}" "${branch_name}" || exit 1
+  if [[ "${LLVM_VERSION_MAJOR}" -lt 4 ]]; then
+    # Use symlinks for older versions whose build systems do not support the monorepo directory layout
+    ln -s "${LLVM_SRC_BASE}/clang" "${LLVM_SRC_BASE}/llvm/tools/"
+    ln -s "${LLVM_SRC_BASE}/compiler-rt" "${LLVM_SRC_BASE}/llvm/projects/"
+    ln -s "${LLVM_SRC_BASE}/libcxx" "${LLVM_SRC_BASE}/llvm/projects/"
+    ln -s "${LLVM_SRC_BASE}/libcxxabi" "${LLVM_SRC_BASE}/llvm/projects/"
   fi
 
   # Apply existing patches if needed
   if [ -f "${DIR}/patches/llvm${LLVM_VERSION_SHORT}.patch" ]; then
      cd "${LLVM_SRC_BASE}" || (echo "Directory does not exist"; exit 1)
-     patch -p0 -i "${DIR}/patches/llvm${LLVM_VERSION_SHORT}.patch"
+     patch -p1 --follow-symlinks -i "${DIR}/patches/llvm${LLVM_VERSION_SHORT}.patch" || return 1
   fi
 
   touch "${LLVM_SRC_BASE}/.src_checked_out" 
@@ -129,24 +126,23 @@ build_llvm() {
 
     # For memory sanitizer, we have a multi-stage build process
     if [[ "${SANITIZER_BUILD}" == "memory" ]]; then
-       if [[ ${LLVM_VERSION_SHORT} -le 37 ]]; then
-         echo "Memory sanitizer builds for <= LLVM 3.7 are not supported"
-         exit 1
-       fi
        # Build uninstrumented compiler
        mkdir -p "${SANITIZER_LLVM_UNINSTRUMENTED}"
        cd "${SANITIZER_LLVM_UNINSTRUMENTED}"
-       cmake -GNinja -DCMAKE_BUILD_TYPE=Release "${LLVM_SRC_BASE}"
+       cmake -GNinja -DCMAKE_BUILD_TYPE=Release \
+        "-DLLVM_ENABLE_PROJECTS=clang;compiler-rt;libcxx;libcxxabi" \
+        "${LLVM_SRC_BASE}/llvm"
        ninja
 
        # Build instrumented libc/libc++
        mkdir -p "${SANITIZER_LLVM_LIBCXX}"
        cd "${SANITIZER_LLVM_LIBCXX}"
        cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        "-DLLVM_ENABLE_PROJECTS=clang;compiler-rt;libcxx;libcxxabi" \
         -DLLVM_USE_SANITIZER=MemoryWithOrigins \
-        "${SANITIZER_CMAKE_C_COMPILER}" \
-        "${SANITIZER_CMAKE_CXX_COMPILER}" \
-        "${LLVM_SRC_BASE}"
+        "${SANITIZER_CMAKE_C_COMPILER[@]}" \
+        "${SANITIZER_CMAKE_CXX_COMPILER[@]}" \
+        "${LLVM_SRC_BASE}/llvm"
        ninja cxx cxxabi
 
        # Build instrumented clang
@@ -156,17 +152,18 @@ build_llvm() {
        CXX_F="${SANITIZER_CXX_FLAGS[*]}"
        LD_F="${SANITIZER_LD_FLAGS[*]}"
        cmake -GNinja \
-          "${SANITIZER_CMAKE_C_COMPILER[*]}" \
-          "${SANITIZER_CMAKE_CXX_COMPILER[*]}" \
+          "${SANITIZER_CMAKE_C_COMPILER[@]}" \
+          "${SANITIZER_CMAKE_CXX_COMPILER[@]}" \
           -DCMAKE_C_FLAGS="$C_F" \
           -DCMAKE_CXX_FLAGS="${CXX_F}" \
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          "-DLLVM_ENABLE_PROJECTS=clang;compiler-rt;libcxx;libcxxabi" \
           -DLLVM_ENABLE_ASSERTIONS=On \
           -DLLVM_USE_SANITIZER=MemoryWithOrigins \
           -DLLVM_ENABLE_LIBCXX=ON \
           -DCMAKE_EXE_LINKER_FLAGS="${LD_F}" \
           -DCMAKE_INSTALL_PREFIX="${LLVM_INSTALL}" \
-          "${LLVM_SRC_BASE}"
+          "${LLVM_SRC_BASE}/llvm"
       # Build clang as a dependency and install all needed packages
       ninja clang
       return 0
@@ -181,114 +178,67 @@ build_llvm() {
 
 
   # Configure LLVM
-  if [[ ${LLVM_VERSION_SHORT} -le 37 ]]; then
-    local CONFIG=("--enable-jit" "--prefix=${LLVM_INSTALL}")
-    if [[ "${enable_optimized}" == "1" ]]; then
-      CONFIG+=(--enable-optimized)
-    else
-      CONFIG+=(--disable-optimized)
-    fi
+  CONFIG=(
+     "-DCMAKE_INSTALL_PREFIX=${LLVM_INSTALL}"
+     "-DLLVM_BUILD_LLVM_DYLIB=TRUE"
+     "-DLLVM_ENABLE_PROJECTS=clang;compiler-rt;libcxx;libcxxabi"
+  )
+  # cmake build
+  if [[ "${enable_optimized}" == "1" && "${enable_debug}" != "1" ]]; then
+    CONFIG+=("-DCMAKE_BUILD_TYPE=Release")
+  fi
+  if [[ "${enable_optimized}" == "1" && "${enable_debug}" == "1" ]]; then
+    CONFIG+=("-DCMAKE_BUILD_TYPE=RelWithDebInfo")
+  fi
+  if [[ "${enable_optimized}" != "1" && "${enable_debug}" == "1" ]]; then
+    CONFIG+=("-DCMAKE_BUILD_TYPE=Debug")
+  fi
 
-    if [[ "${disable_assertions}" == "1" ]]; then
-      CONFIG+=(--disable-assertions)
-    else
-      CONFIG+=(--enable-assertions)
-    fi
-
-    if [[ "${enable_debug}" == "1" ]]; then
-      CONFIG+=(--enable-debug-runtime --enable-debug-symbols)
-    else
-      CONFIG+=(--disable-debug-symbols)
-    fi
-
-    local variables=()
-    if [[ -n "${CC:-}" ]]; then
-        variables+=("CC=${CC}")
-    fi
-
-    if [[ -n "${CXX:-}" ]]; then
-        variables+=("CXX=${CXX}")
-    fi
-
-    if [[ -n "${LDFLAGS:-}" ]]; then
-        variables+=("LDFLAGS=${LLVM_LDFLAGS}")
-    fi
-
-    if [[ -n "${LLVM_CFLAGS:-}" ]]; then
-        variables+=("CFLAGS=${LLVM_CFLAGS}")
-    fi
-
-    if [[ -n "${LLVM_CXXFLAGS:-}" ]]; then
-        variables+=("CXXFLAGS=${LLVM_CXXFLAGS}")
-    fi
-
-    if [[ -n "${LLVM_LDFLAGS:-}" ]]; then
-        variables+=("LDFLAGS=${LLVM_LDFLAGS}")
-    fi
-    ${variables[@]+"${variables[@]}"} "${LLVM_SRC_BASE}/configure" "${CONFIG[@]}"
-
+  if [[ "${disable_assertions}" == "1" ]]; then
+    CONFIG+=("-DLLVM_ENABLE_ASSERTIONS=Off")
   else
-    CONFIG=(
-        "-DCMAKE_INSTALL_PREFIX=${LLVM_INSTALL}"
-        "-LLVM_BUILD_LLVM_DYLIB=TRUE"
-    )
-    # cmake build
-    if [[ "${enable_optimized}" == "1" && "${enable_debug}" != "1" ]]; then
-      CONFIG+=("-DCMAKE_BUILD_TYPE=Release")
-    fi
-    if [[ "${enable_optimized}" == "1" && "${enable_debug}" == "1" ]]; then
-      CONFIG+=("-DCMAKE_BUILD_TYPE=RelWithDebInfo")
-    fi
-    if [[ "${enable_optimized}" != "1" && "${enable_debug}" == "1" ]]; then
-      CONFIG+=("-DCMAKE_BUILD_TYPE=Debug")
-    fi
+    CONFIG+=("-DLLVM_ENABLE_ASSERTIONS=On")
+  fi
 
-    if [[ "${disable_assertions}" == "1" ]]; then
-      CONFIG+=("-DLLVM_ENABLE_ASSERTIONS=Off")
-    else
-      CONFIG+=("-DLLVM_ENABLE_ASSERTIONS=On")
-    fi
+  if [[ -n "${LLVM_CFLAGS:-}" ]]; then
+    CONFIG+=("-DCMAKE_C_FLAGS=\"$LLVM_CFLAGS\"")
+  fi
 
-    if [[ -n "${LLVM_CFLAGS:-}" ]]; then
-      CONFIG+=("-DCMAKE_C_FLAGS=\"$LLVM_CFLAGS\"")
-    fi
+  if [[ -n "${LLVM_CXXFLAGS:-}" ]]; then
+    CONFIG+=("-DCMAKE_CXX_FLAGS=\"$LLVM_CXXFLAGS\"")
+  fi
 
-    if [[ -n "${LLVM_CXXFLAGS:-}" ]]; then
-      CONFIG+=("-DCMAKE_CXX_FLAGS=\"$LLVM_CXXFLAGS\"")
-    fi
+  if [[ "${requires_rtti}" -eq 1 ]]; then
+    CONFIG+=("-DLLVM_ENABLE_RTTI=TRUE")
+  fi
 
-    if [[ "${requires_rtti}" -eq 1 ]]; then
-      CONFIG+=("-DLLVM_ENABLE_RTTI=TRUE")
-    fi
+  # Remove unneeded targets
+  CONFIG+=(
+     "-DLLVM_INCLUDE_EXAMPLES=OFF"
+#     "-DLLVM_INCLUDE_TESTS=OFF"
+#     "-DCLANG_INCLUDE_TESTS=OFF"
+     "-DLLVM_INCLUDE_BENCHMARKS=OFF"
+     "-DBUILD_SHARED_LIBS=ON"
+  )
 
-    # Remove unneeded targets
-    CONFIG+=(
-       -DLLVM_INCLUDE_EXAMPLES=OFF
-#       -DLLVM_INCLUDE_TESTS=OFF
-#       -DCLANG_INCLUDE_TESTS=OFF
-       -DLLVM_INCLUDE_BENCHMARKS=OFF
-       -DBUILD_SHARED_LIBS=ON
-    )
+  local variables=("")
 
-    local variables=("")
+  if [[ -n "${CC:-}" ]]; then
+    variables+=("CC=${CC}")
+  fi
 
-    if [[ -n "${CC:-}" ]]; then
-        variables+=("CC=${CC}")
-    fi
+  if [[ -n "${CXX:-}" ]]; then
+    variables+=("CXX=${CXX}")
+  fi
 
-    if [[ -n "${CXX:-}" ]]; then
-        variables+=("CXX=${CXX}")
-    fi
+  if [[ -n "${LDFLAGS:-}" ]]; then
+    variables+=("LDFLAGS=${LLVM_LDFLAGS}")
+  fi
 
-    if [[ -n "${LDFLAGS:-}" ]]; then
-        variables+=("LDFLAGS=${LLVM_LDFLAGS}")
-    fi
-
-    if [[ -n "${variables[*]}" ]]; then
-      "${variables[*]}" cmake "${CONFIG[@]}" "${LLVM_SRC_BASE}"
-    else
-      cmake "${CONFIG[@]}" "${LLVM_SRC_BASE}"
-    fi
+  if [[ -n "${variables[*]}" ]]; then
+    "${variables[*]}" cmake "${CONFIG[@]}" "${LLVM_SRC_BASE}/llvm"
+  else
+    cmake "${CONFIG[@]}" "${LLVM_SRC_BASE}/llvm"
   fi
 
   # Linking LLVM can require a lot of memory.

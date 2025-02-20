@@ -14,6 +14,12 @@
 
 #include "gtest/gtest.h"
 
+// WARNING: If LLVM's gtest_main target is reused
+//          or is built from LLVM's source tree,
+//          this file is ignored. Instead, LLVM's
+//          utils/unittest/UnitTestMain/TestMain.cpp
+//          is used.
+
 int main(int argc, char **argv) {
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 9)

@@ -10,10 +10,10 @@
 #ifdef ENABLE_Z3
 #include "Z3Builder.h"
 
-#include "klee/Expr.h"
+#include "klee/Expr/Expr.h"
 #include "klee/Internal/Support/ErrorHandling.h"
-#include "klee/Solver.h"
-#include "klee/SolverStats.h"
+#include "klee/Solver/Solver.h"
+#include "klee/Solver/SolverStats.h"
 #include "klee/util/Bits.h"
 
 #include "llvm/ADT/StringExtras.h"
@@ -439,7 +439,7 @@ Z3ASTHandle Z3Builder::getArrayForUpdate(const Array *root,
     bool hashed = _arr_hash.lookupUpdateNodeExpr(un, un_expr);
 
     if (!hashed) {
-      un_expr = writeExpr(getArrayForUpdate(root, un->next),
+      un_expr = writeExpr(getArrayForUpdate(root, un->next.get()),
                           construct(un->index, 0), construct(un->value, 0));
 
       _arr_hash.hashUpdateNodeExpr(un, un_expr);
@@ -522,7 +522,7 @@ Z3ASTHandle Z3Builder::constructActual(ref<Expr> e, int *width_out) {
     ReadExpr *re = cast<ReadExpr>(e);
     assert(re && re->updates.root);
     *width_out = re->updates.root->getRange();
-    return readExpr(getArrayForUpdate(re->updates.root, re->updates.head),
+    return readExpr(getArrayForUpdate(re->updates.root, re->updates.head.get()),
                     construct(re->index, 0));
   }
 

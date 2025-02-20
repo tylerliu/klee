@@ -10,7 +10,7 @@
 #ifndef KLEE_EXPRANALYSIS_H
 #define KLEE_EXPRANALYSIS_H
 
-#include "klee/Expr.h"
+#include "klee/Expr/Expr.h"
 
 namespace klee {
   template<class Analysis, class Result>

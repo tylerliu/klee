@@ -10,10 +10,10 @@
 #ifdef ENABLE_STP
 #include "STPBuilder.h"
 
-#include "klee/Expr.h"
-#include "klee/Solver.h"
+#include "klee/Expr/Expr.h"
+#include "klee/Solver/Solver.h"
+#include "klee/Solver/SolverStats.h"
 #include "klee/util/Bits.h"
-#include "klee/SolverStats.h"
 
 #include "ConstantDivision.h"
 
@@ -462,7 +462,7 @@ ExprHandle STPBuilder::constructSDivByConstant(ExprHandle expr_n, unsigned width
     _arr_hash.hashArrayExpr(root, array_expr);
   }
   
-  return(array_expr); 
+  return array_expr;
 }
 
 ExprHandle STPBuilder::getInitialRead(const Array *root, unsigned index) {
@@ -472,7 +472,7 @@ ExprHandle STPBuilder::getInitialRead(const Array *root, unsigned index) {
 ::VCExpr STPBuilder::getArrayForUpdate(const Array *root, 
                                        const UpdateNode *un) {
   if (!un) {
-      return(getInitialArray(root));
+      return getInitialArray(root);
   }
   else {
       // FIXME: This really needs to be non-recursive.
@@ -480,15 +480,14 @@ ExprHandle STPBuilder::getInitialRead(const Array *root, unsigned index) {
       bool hashed = _arr_hash.lookupUpdateNodeExpr(un, un_expr);
       
       if (!hashed) {
-	un_expr = vc_writeExpr(vc,
-                               getArrayForUpdate(root, un->next),
-                               construct(un->index, 0),
-                               construct(un->value, 0));
-	
-	_arr_hash.hashUpdateNodeExpr(un, un_expr);
+        un_expr =
+            vc_writeExpr(vc, getArrayForUpdate(root, un->next.get()),
+                         construct(un->index, 0), construct(un->value, 0));
+
+        _arr_hash.hashUpdateNodeExpr(un, un_expr);
       }
       
-      return(un_expr);
+      return un_expr;
   }
 }
 
@@ -560,9 +559,9 @@ ExprHandle STPBuilder::constructActual(ref<Expr> e, int *width_out) {
     ReadExpr *re = cast<ReadExpr>(e);
     assert(re && re->updates.root);
     *width_out = re->updates.root->getRange();
-    return vc_readExpr(vc,
-                       getArrayForUpdate(re->updates.root, re->updates.head),
-                       construct(re->index, 0));
+    return vc_readExpr(
+        vc, getArrayForUpdate(re->updates.root, re->updates.head.get()),
+        construct(re->index, 0));
   }
     
   case Expr::Select: {

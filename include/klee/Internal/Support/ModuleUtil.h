@@ -7,18 +7,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef KLEE_MODULE_UTIL_H
-#define KLEE_MODULE_UTIL_H
+#ifndef KLEE_MODULEUTIL_H
+#define KLEE_MODULEUTIL_H
 
 #include "klee/Config/Version.h"
 
-#include "llvm/IR/Module.h"
-
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 5)
 #include "llvm/IR/CallSite.h"
-#else
-#include "llvm/Support/CallSite.h"
-#endif
+#include "llvm/IR/Module.h"
 
 #include <memory>
 #include <string>
@@ -72,4 +67,4 @@ bool loadFile(const std::string &libraryName, llvm::LLVMContext &context,
               std::string &errorMsg);
 }
 
-#endif
+#endif /* KLEE_MODULEUTIL_H */

@@ -18,7 +18,7 @@
 #include "klee/Internal/Support/ModuleUtil.h"
 #include "klee/Internal/System/MemoryUsage.h"
 #include "klee/Internal/Support/ErrorHandling.h"
-#include "klee/SolverStats.h"
+#include "klee/Solver/SolverStats.h"
 
 #include "CallPathManager.h"
 #include "CoreStats.h"
@@ -26,25 +26,20 @@
 #include "MemoryManager.h"
 #include "UserSearcher.h"
 
+#include "llvm/ADT/SmallBitVector.h"
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/CFG.h"
+#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Process.h"
-#include "llvm/Support/Path.h"
 #include "llvm/Support/FileSystem.h"
-
-#if LLVM_VERSION_CODE < LLVM_VERSION(3, 5)
-#include "llvm/Support/CallSite.h"
-#include "llvm/Support/CFG.h"
-#else
-#include "llvm/IR/CallSite.h"
-#include "llvm/IR/CFG.h"
-#endif
+#include "llvm/Support/Path.h"
+#include "llvm/Support/Process.h"
 
 #include <fstream>
 #include <unistd.h>
@@ -86,6 +81,13 @@ cl::opt<unsigned> StatsWriteAfterInstructions(
         "Write statistics after each n instructions, 0 to disable (default=0)"),
     cl::cat(StatsCat));
 
+  cl::opt<unsigned> CommitEvery(
+      "stats-commit-after", cl::init(0),
+      cl::desc("Commit the statistics every N writes. By default commit every "
+               "write with -stats-write-interval or every 1000 writes with "
+               "-stats-write-after-instructions. (default=0)"),
+      cl::cat(StatsCat));
+
 cl::opt<std::string> IStatsWriteInterval(
     "istats-write-interval", cl::init("10s"),
     cl::desc(
@@ -121,40 +123,6 @@ bool StatsTracker::useIStats() {
   return OutputIStats;
 }
 
-namespace klee {
-  class WriteIStatsTimer : public Executor::Timer {
-    StatsTracker *statsTracker;
-    
-  public:
-    WriteIStatsTimer(StatsTracker *_statsTracker) : statsTracker(_statsTracker) {}
-    ~WriteIStatsTimer() {}
-    
-    void run() { statsTracker->writeIStats(); }
-  };
-  
-  class WriteStatsTimer : public Executor::Timer {
-    StatsTracker *statsTracker;
-    
-  public:
-    WriteStatsTimer(StatsTracker *_statsTracker) : statsTracker(_statsTracker) {}
-    ~WriteStatsTimer() {}
-    
-    void run() { statsTracker->writeStatsLine(); }
-  };
-
-  class UpdateReachableTimer : public Executor::Timer {
-    StatsTracker *statsTracker;
-    
-  public:
-    UpdateReachableTimer(StatsTracker *_statsTracker) : statsTracker(_statsTracker) {}
-    
-    void run() { statsTracker->computeReachableUncovered(); }
-  };
- 
-}
-
-//
-
 /// Check for special cases where we statically know an instruction is
 /// uncoverable. Currently the case is an unreachable instruction
 /// following a noreturn call; the instruction is really only there to
@@ -177,6 +145,13 @@ static bool instructionIsCoverable(Instruction *i) {
   }
 
   return true;
+}
+
+std::string sqlite3ErrToStringAndFree(const std::string& prefix , char* sqlite3ErrMsg) {
+  std::ostringstream sstream;
+  sstream << prefix << sqlite3ErrMsg;
+  sqlite3_free(sqlite3ErrMsg);
+  return sstream.str();
 }
 
 StatsTracker::StatsTracker(Executor &_executor, std::string _objectFilename,
@@ -203,21 +178,17 @@ StatsTracker::StatsTracker(Executor &_executor, std::string _objectFilename,
         "time.");
 
   KModule *km = executor.kmodule.get();
+  if(CommitEvery > 0) {
+      statsCommitEvery = CommitEvery;
+  } else {
+      statsCommitEvery = statsWriteInterval ? 1 : 1000;
+  }
 
   if (!sys::path::is_absolute(objectFilename)) {
     SmallString<128> current(objectFilename);
     if(sys::fs::make_absolute(current)) {
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 6)
       Twine current_twine(current.str()); // requires a twine for this
       if (!sys::fs::exists(current_twine)) {
-#elif LLVM_VERSION_CODE >= LLVM_VERSION(3, 5)
-      bool exists = false;
-      if (!sys::fs::exists(current.str(), exists)) {
-#else
-      bool exists = false;
-      error_code ec = sys::fs::exists(current.str(), exists);
-      if (ec == errc::success && exists) {
-#endif
         objectFilename = current.c_str();
       }
     }
@@ -249,32 +220,88 @@ StatsTracker::StatsTracker(Executor &_executor, std::string _objectFilename,
   }
 
   if (OutputStats) {
-    statsFile = executor.interpreterHandler->openOutputFile("run.stats");
-    if (statsFile) {
-      writeStatsHeader();
-      writeStatsLine();
+    sqlite3_config(SQLITE_CONFIG_SINGLETHREAD);
+    sqlite3_enable_shared_cache(0);
 
-      if (statsWriteInterval)
-        executor.addTimer(new WriteStatsTimer(this), statsWriteInterval);
-    } else {
-      klee_error("Unable to open statistics trace file (run.stats).");
+    // open database
+    auto db_filename = executor.interpreterHandler->getOutputFilename("run.stats");
+    if (sqlite3_open(db_filename.c_str(), &statsFile) != SQLITE_OK) {
+      std::ostringstream errorstream;
+      errorstream << "Can't open database: " << sqlite3_errmsg(statsFile);
+      sqlite3_close(statsFile);
+      klee_error("%s", errorstream.str().c_str());
     }
+
+    // prepare statements
+    if (sqlite3_prepare_v2(statsFile, "BEGIN TRANSACTION", -1, &transactionBeginStmt, nullptr) != SQLITE_OK) {
+      klee_error("Cannot create prepared statement: %s", sqlite3_errmsg(statsFile));
+    }
+
+    if (sqlite3_prepare_v2(statsFile, "END TRANSACTION", -1, &transactionEndStmt, nullptr) != SQLITE_OK) {
+      klee_error("Cannot create prepared statement: %s", sqlite3_errmsg(statsFile));
+    }
+
+    // set options
+    char *zErrMsg;
+    if (sqlite3_exec(statsFile, "PRAGMA synchronous = OFF", nullptr, nullptr, &zErrMsg) != SQLITE_OK) {
+      klee_error("%s", sqlite3ErrToStringAndFree("Can't set options for database: ", zErrMsg).c_str());
+    }
+
+    // note: we use WAL here a) for speed and b) to prevent creation of new file descriptors (as with TRUNCATE)
+    if (sqlite3_exec(statsFile, "PRAGMA journal_mode = WAL", nullptr, nullptr, &zErrMsg) != SQLITE_OK) {
+      klee_error("%s", sqlite3ErrToStringAndFree("Can't set options for database: ", zErrMsg).c_str());
+    }
+
+    // create table
+    writeStatsHeader();
+
+    // begin transaction
+    auto rc = sqlite3_step(transactionBeginStmt);
+    if (rc != SQLITE_DONE) {
+      klee_warning("Can't begin transaction: %s", sqlite3_errmsg(statsFile));
+    }
+    sqlite3_reset(transactionBeginStmt);
+
+    writeStatsLine();
+
+    if (statsWriteInterval)
+      executor.timers.add(std::make_unique<Timer>(statsWriteInterval, [&]{
+        writeStatsLine();
+      }));
   }
 
   // Add timer to calculate uncovered instructions if needed by the solver
   if (updateMinDistToUncovered) {
     computeReachableUncovered();
-    executor.addTimer(new UpdateReachableTimer(this), time::Span(UncoveredUpdateInterval));
+    executor.timers.add(std::make_unique<Timer>(time::Span{UncoveredUpdateInterval}, [&]{
+      computeReachableUncovered();
+    }));
   }
 
   if (OutputIStats) {
     istatsFile = executor.interpreterHandler->openOutputFile("run.istats");
     if (istatsFile) {
       if (iStatsWriteInterval)
-        executor.addTimer(new WriteIStatsTimer(this), iStatsWriteInterval);
+        executor.timers.add(std::make_unique<Timer>(iStatsWriteInterval, [&]{
+          writeIStats();
+        }));
     } else {
       klee_error("Unable to open instruction level stats file (run.istats).");
     }
+  }
+}
+
+StatsTracker::~StatsTracker() {  
+  if (statsFile) {
+    auto rc = sqlite3_step(transactionEndStmt);
+    if (rc != SQLITE_DONE) {
+      klee_warning("Can't commit transaction: %s", sqlite3_errmsg(statsFile));
+    }
+    sqlite3_reset(transactionEndStmt);
+    sqlite3_finalize(transactionBeginStmt);
+    sqlite3_finalize(transactionEndStmt);
+    sqlite3_finalize(insertStmt);
+    sqlite3_close(statsFile);
   }
 }
 
@@ -379,8 +406,7 @@ void StatsTracker::framePopped(ExecutionState &es) {
   // XXX remove me?
 }
 
-
-void StatsTracker::markBranchVisited(ExecutionState *visitedTrue, 
+void StatsTracker::markBranchVisited(ExecutionState *visitedTrue,
                                      ExecutionState *visitedFalse) {
   if (OutputIStats) {
     unsigned id = theStatisticManager->getIndex();
@@ -405,31 +431,96 @@ void StatsTracker::markBranchVisited(ExecutionState *visitedTrue,
 }
 
 void StatsTracker::writeStatsHeader() {
-  *statsFile << "('Instructions',"
-             << "'FullBranches',"
-             << "'PartialBranches',"
-             << "'NumBranches',"
-             << "'UserTime',"
-             << "'NumStates',"
-             << "'MallocUsage',"
-             << "'NumQueries',"
-             << "'NumQueryConstructs',"
-             << "'NumObjects',"
-             << "'WallTime',"
-             << "'CoveredInstructions',"
-             << "'UncoveredInstructions',"
-             << "'QueryTime',"
-             << "'SolverTime',"
-             << "'CexCacheTime',"
-             << "'ForkTime',"
-             << "'ResolveTime',"
-             << "'QueryCexCacheMisses',"
-             << "'QueryCexCacheHits',"
+  std::ostringstream create, insert;
+  create << "CREATE TABLE stats ";
+  create     << "(Instructions INTEGER,"
+             << "FullBranches INTEGER,"
+             << "PartialBranches INTEGER,"
+             << "NumBranches INTEGER,"
+             << "UserTime REAL,"
+             << "NumStates INTEGER,"
+             << "MallocUsage INTEGER,"
+             << "NumQueries INTEGER,"
+             << "NumQueryConstructs INTEGER,"
+             << "NumObjects INTEGER,"
+             << "WallTime REAL,"
+             << "CoveredInstructions INTEGER,"
+             << "UncoveredInstructions INTEGER,"
+             << "QueryTime INTEGER,"
+             << "SolverTime INTEGER,"
+             << "CexCacheTime INTEGER,"
+             << "ForkTime INTEGER,"
+             << "ResolveTime INTEGER,"
+             << "QueryCexCacheMisses INTEGER,"
 #ifdef KLEE_ARRAY_DEBUG
-	     << "'ArrayHashTime',"
+	           << "ArrayHashTime INTEGER,"
 #endif
-             << ")\n";
-  statsFile->flush();
+             << "QueryCexCacheHits INTEGER"
+             << ")";
+  char *zErrMsg = nullptr;
+  if(sqlite3_exec(statsFile, create.str().c_str(), nullptr, nullptr, &zErrMsg)) {
+    klee_error("%s", sqlite3ErrToStringAndFree("ERROR creating table: ", zErrMsg).c_str());
+  }
+  /* Sometimes KLEE runs out of file descriptors and hence we try to a) keep important fds open and b) prevent the
+   * creation of temporary files. SQLite3 uses temporary files for statement journals, which help rollbacks when
+   * constraints are violated. We have no constraints in our table so there shouldn't be a constraint violation.
+   * `OR FAIL` will not write to temp files and therefore not rollback but simply fail. As said before this should not
+   * happen, but if it does this statement will fail with SQLITE_CONSTRAINT error. If this happens you should either
+   * remove the constraints or consider using `IGNORE` mode.
+   */
+  insert << "INSERT OR FAIL INTO stats ( "
+             << "Instructions ,"
+             << "FullBranches ,"
+             << "PartialBranches ,"
+             << "NumBranches ,"
+             << "UserTime ,"
+             << "NumStates ,"
+             << "MallocUsage ,"
+             << "NumQueries ,"
+             << "NumQueryConstructs ,"
+             << "NumObjects ,"
+             << "WallTime ,"
+             << "CoveredInstructions ,"
+             << "UncoveredInstructions ,"
+             << "QueryTime ,"
+             << "SolverTime ,"
+             << "CexCacheTime ,"
+             << "ForkTime ,"
+             << "ResolveTime ,"
+             << "QueryCexCacheMisses ,"
+#ifdef KLEE_ARRAY_DEBUG
+             << "ArrayHashTime,"
+#endif
+             << "QueryCexCacheHits "
+             << ") VALUES ( "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+             << "?, "
+#ifdef KLEE_ARRAY_DEBUG
+             << "?, "
+#endif
+             << "? "
+             << ")";
+
+  if(sqlite3_prepare_v2(statsFile, insert.str().c_str(), -1, &insertStmt, nullptr) != SQLITE_OK) {
+    klee_error("Cannot create prepared statement: %s", sqlite3_errmsg(statsFile));
+  }
 }
 
 time::Span StatsTracker::elapsed() {
@@ -437,31 +528,44 @@ time::Span StatsTracker::elapsed() {
 }
 
 void StatsTracker::writeStatsLine() {
-  *statsFile << "(" << stats::instructions
-             << "," << fullBranches
-             << "," << partialBranches
-             << "," << numBranches
-             << "," << time::getUserTime().toSeconds()
-             << "," << executor.states.size()
-             << "," << util::GetTotalMallocUsage() + executor.memory->getUsedDeterministicSize()
-             << "," << stats::queries
-             << "," << stats::queryConstructs
-             << "," << 0 // was numObjects
-             << "," << elapsed().toSeconds()
-             << "," << stats::coveredInstructions
-             << "," << stats::uncoveredInstructions
-             << "," << time::microseconds(stats::queryTime).toSeconds()
-             << "," << time::microseconds(stats::solverTime).toSeconds()
-             << "," << time::microseconds(stats::cexCacheTime).toSeconds()
-             << "," << time::microseconds(stats::forkTime).toSeconds()
-             << "," << time::microseconds(stats::resolveTime).toSeconds()
-             << "," << stats::queryCexCacheMisses
-             << "," << stats::queryCexCacheHits
+  sqlite3_bind_int64(insertStmt, 1, stats::instructions);
+  sqlite3_bind_int64(insertStmt, 2, fullBranches);
+  sqlite3_bind_int64(insertStmt, 3, partialBranches);
+  sqlite3_bind_int64(insertStmt, 4, numBranches);
+  sqlite3_bind_int64(insertStmt, 5, time::getUserTime().toMicroseconds());
+  sqlite3_bind_int64(insertStmt, 6, executor.states.size());
+  sqlite3_bind_int64(insertStmt, 7, util::GetTotalMallocUsage() + executor.memory->getUsedDeterministicSize());
+  sqlite3_bind_int64(insertStmt, 8, stats::queries);
+  sqlite3_bind_int64(insertStmt, 9, stats::queryConstructs);
+  sqlite3_bind_int64(insertStmt, 10, 0);  // was numObjects
+  sqlite3_bind_int64(insertStmt, 11, elapsed().toMicroseconds());
+  sqlite3_bind_int64(insertStmt, 12, stats::coveredInstructions);
+  sqlite3_bind_int64(insertStmt, 13, stats::uncoveredInstructions);
+  sqlite3_bind_int64(insertStmt, 14, stats::queryTime);
+  sqlite3_bind_int64(insertStmt, 15, stats::solverTime);
+  sqlite3_bind_int64(insertStmt, 16, stats::cexCacheTime);
+  sqlite3_bind_int64(insertStmt, 17, stats::forkTime);
+  sqlite3_bind_int64(insertStmt, 18, stats::resolveTime);
+  sqlite3_bind_int64(insertStmt, 19, stats::queryCexCacheMisses);
+  sqlite3_bind_int64(insertStmt, 20, stats::queryCexCacheHits);
 #ifdef KLEE_ARRAY_DEBUG
-             << "," << time::microseconds(stats::arrayHashTime).toSeconds()
+  sqlite3_bind_int64(insertStmt, 21, stats::arrayHashTime);
 #endif
-             << ")\n";
-  statsFile->flush();
+  int errCode = sqlite3_step(insertStmt);
+  if(errCode != SQLITE_DONE) klee_error("Error writing stats data: %s", sqlite3_errmsg(statsFile));
+  sqlite3_reset(insertStmt);
+
+  statsWriteCount++;
+  if(statsWriteCount == statsCommitEvery) {
+    errCode = sqlite3_step(transactionEndStmt);
+    if (errCode != SQLITE_DONE) klee_warning("Transaction commit error: %s", sqlite3_errmsg(statsFile));
+    sqlite3_reset(transactionEndStmt);
+    errCode = sqlite3_step(transactionBeginStmt);
+    if (errCode != SQLITE_DONE) klee_warning("Transaction begin error: %s", sqlite3_errmsg(statsFile));
+    sqlite3_reset(transactionBeginStmt);
+
+    statsWriteCount = 0;
+  }
 }
 
 void StatsTracker::updateStateStatistics(uint64_t addend) {
@@ -477,7 +581,6 @@ void StatsTracker::updateStateStatistics(uint64_t addend) {
 
 void StatsTracker::writeIStats() {
   const auto m = executor.kmodule->module.get();
-  uint64_t istatsMask = 0;
   llvm::raw_fd_ostream &of = *istatsFile;
   
   // We assume that we didn't move the file pointer
@@ -490,29 +593,29 @@ void StatsTracker::writeIStats() {
   of << "pid: " << getpid() << "\n";
   of << "cmd: " << m->getModuleIdentifier() << "\n\n";
   of << "\n";
-  
+
   StatisticManager &sm = *theStatisticManager;
   unsigned nStats = sm.getNumStatistics();
+  llvm::SmallBitVector istatsMask(nStats);
 
-  // Max is 13, sadly
-  istatsMask |= 1<<sm.getStatisticID("Queries");
-  istatsMask |= 1<<sm.getStatisticID("QueriesValid");
-  istatsMask |= 1<<sm.getStatisticID("QueriesInvalid");
-  istatsMask |= 1<<sm.getStatisticID("QueryTime");
-  istatsMask |= 1<<sm.getStatisticID("ResolveTime");
-  istatsMask |= 1<<sm.getStatisticID("Instructions");
-  istatsMask |= 1<<sm.getStatisticID("InstructionTimes");
-  istatsMask |= 1<<sm.getStatisticID("InstructionRealTimes");
-  istatsMask |= 1<<sm.getStatisticID("Forks");
-  istatsMask |= 1<<sm.getStatisticID("CoveredInstructions");
-  istatsMask |= 1<<sm.getStatisticID("UncoveredInstructions");
-  istatsMask |= 1<<sm.getStatisticID("States");
-  istatsMask |= 1<<sm.getStatisticID("MinDistToUncovered");
+  istatsMask.set(sm.getStatisticID("Queries"));
+  istatsMask.set(sm.getStatisticID("QueriesValid"));
+  istatsMask.set(sm.getStatisticID("QueriesInvalid"));
+  istatsMask.set(sm.getStatisticID("QueryTime"));
+  istatsMask.set(sm.getStatisticID("ResolveTime"));
+  istatsMask.set(sm.getStatisticID("Instructions"));
+  istatsMask.set(sm.getStatisticID("InstructionTimes"));
+  istatsMask.set(sm.getStatisticID("InstructionRealTimes"));
+  istatsMask.set(sm.getStatisticID("Forks"));
+  istatsMask.set(sm.getStatisticID("CoveredInstructions"));
+  istatsMask.set(sm.getStatisticID("UncoveredInstructions"));
+  istatsMask.set(sm.getStatisticID("States"));
+  istatsMask.set(sm.getStatisticID("MinDistToUncovered"));
 
   of << "positions: instr line\n";
 
   for (unsigned i=0; i<nStats; i++) {
-    if (istatsMask & (1<<i)) {
+    if (istatsMask.test(i)) {
       Statistic &s = sm.getStatistic(i);
       of << "event: " << s.getShortName() << " : " 
          << s.getName() << "\n";
@@ -521,14 +624,14 @@ void StatsTracker::writeIStats() {
 
   of << "events: ";
   for (unsigned i=0; i<nStats; i++) {
-    if (istatsMask & (1<<i))
+    if (istatsMask.test(i))
       of << sm.getStatistic(i).getShortName() << " ";
   }
   of << "\n";
   
   // set state counts, decremented after we process so that we don't
   // have to zero all records each time.
-  if (istatsMask & (1<<stats::states.getID()))
+  if (istatsMask.test(stats::states.getID()))
     updateStateStatistics(1);
 
   std::string sourceFile = "";
@@ -537,7 +640,7 @@ void StatsTracker::writeIStats() {
   if (UseCallPaths)
     callPathManager.getSummaryStatistics(callSiteStats);
 
-  of << "ob=" << objectFilename << "\n";
+  of << "ob=" << llvm::sys::path::filename(objectFilename).str() << "\n";
 
   for (Module::iterator fnIt = m->begin(), fn_ie = m->end(); 
        fnIt != fn_ie; ++fnIt) {
@@ -567,7 +670,7 @@ void StatsTracker::writeIStats() {
           of << ii.assemblyLine << " ";
           of << ii.line << " ";
           for (unsigned i=0; i<nStats; i++)
-            if (istatsMask&(1<<i))
+            if (istatsMask.test(i))
               of << sm.getIndexedValue(sm.getStatistic(i), index) << " ";
           of << "\n";
 
@@ -592,7 +695,7 @@ void StatsTracker::writeIStats() {
                 of << ii.assemblyLine << " ";
                 of << ii.line << " ";
                 for (unsigned i=0; i<nStats; i++) {
-                  if (istatsMask&(1<<i)) {
+                  if (istatsMask.test(i)) {
                     Statistic &s = sm.getStatistic(i);
                     uint64_t value;
 
@@ -616,7 +719,7 @@ void StatsTracker::writeIStats() {
     }
   }
 
-  if (istatsMask & (1<<stats::states.getID()))
+  if (istatsMask.test(stats::states.getID()))
     updateStateStatistics((uint64_t)-1);
   
   // Clear then end of the file if necessary (no truncate op?).
@@ -643,11 +746,7 @@ static std::vector<Instruction*> getSuccs(Instruction *i) {
     for (succ_iterator it = succ_begin(bb), ie = succ_end(bb); it != ie; ++it)
       res.push_back(&*(it->begin()));
   } else {
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 8)
     res.push_back(&*(++(i->getIterator())));
-#else
-    res.push_back(&*(++BasicBlock::iterator(i)));
-#endif
   }
 
   return res;

@@ -7,12 +7,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef KLEE_ARRAYEXPRVISITOR_H_
-#define KLEE_ARRAYEXPRVISITOR_H_
+#ifndef KLEE_ARRAYEXPRVISITOR_H
+#define KLEE_ARRAYEXPRVISITOR_H
 
-#include "klee/ExprBuilder.h"
-#include "klee/SolverCmdLine.h"
-#include "klee/util/ExprVisitor.h"
+#include "klee/Expr/ExprBuilder.h"
+#include "klee/Expr/ExprHashMap.h"
+#include "klee/Expr/ExprVisitor.h"
+#include "klee/Solver/SolverCmdLine.h"
 
 #include <unordered_map>
 #include <unordered_set>
@@ -90,11 +91,11 @@ public:
 class ArrayReadExprVisitor : public ExprVisitor {
 private:
   std::vector<const ReadExpr *> &reads;
-  std::map<const ReadExpr *, std::pair<unsigned, Expr::Width>> &readInfo;
+  std::map<const ReadExpr *, std::pair<ref<Expr>, Expr::Width>> &readInfo;
   bool symbolic;
   bool incompatible;
 
-  Action inspectRead(unsigned hash, Expr::Width width, const ReadExpr &);
+  Action inspectRead(ref<Expr> hash, Expr::Width width, const ReadExpr &);
 
 protected:
   Action visitConcat(const ConcatExpr &) override;
@@ -103,7 +104,7 @@ protected:
 public:
   ArrayReadExprVisitor(
       std::vector<const ReadExpr *> &_reads,
-      std::map<const ReadExpr *, std::pair<unsigned, Expr::Width>> &_readInfo)
+      std::map<const ReadExpr *, std::pair<ref<Expr>, Expr::Width>> &_readInfo)
       : ExprVisitor(true), reads(_reads), readInfo(_readInfo), symbolic(false),
         incompatible(false) {}
   inline bool isIncompatible() { return incompatible; }
@@ -112,32 +113,17 @@ public:
 
 class ArrayValueOptReplaceVisitor : public ExprVisitor {
 private:
-  std::unordered_set<unsigned> visited;
-  std::map<unsigned, ref<Expr>> optimized;
+  ExprHashMap<ref<Expr>> optimized;
 
 protected:
   Action visitConcat(const ConcatExpr &) override;
   Action visitRead(const ReadExpr &re) override;
 
 public:
-  explicit ArrayValueOptReplaceVisitor(
-      std::map<unsigned, ref<Expr>> &_optimized, bool recursive = true)
+  explicit ArrayValueOptReplaceVisitor(ExprHashMap<ref<Expr>> &_optimized,
+                                       bool recursive = true)
       : ExprVisitor(recursive), optimized(_optimized) {}
-};
-
-class IndexCleanerVisitor : public ExprVisitor {
-private:
-  bool mul{true};
-  ref<Expr> index;
-
-protected:
-  Action visitMul(const MulExpr &) override;
-  Action visitRead(const ReadExpr &) override;
-
-public:
-  IndexCleanerVisitor() : ExprVisitor(true) {}
-  inline ref<Expr> getIndex() { return index; }
 };
 } // namespace klee
 
-#endif
+#endif /* KLEE_ARRAYEXPRVISITOR_H */

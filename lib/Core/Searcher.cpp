@@ -25,20 +25,16 @@
 #include "klee/Internal/Support/ModuleUtil.h"
 #include "klee/Internal/System/Time.h"
 #include "klee/Internal/Support/ErrorHandling.h"
+#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/CommandLine.h"
 
-#if LLVM_VERSION_CODE < LLVM_VERSION(3, 5)
-#include "llvm/Support/CallSite.h"
-#else
-#include "llvm/IR/CallSite.h"
-#endif
-
 #include <cassert>
-#include <fstream>
 #include <climits>
+#include <cmath>
+#include <fstream>
 
 using namespace klee;
 using namespace llvm;
@@ -173,7 +169,8 @@ WeightedRandomSearcher::WeightedRandomSearcher(WeightType _type)
   : states(new DiscretePDF<ExecutionState*>()),
     type(_type) {
   switch(type) {
-  case Depth: 
+  case Depth:
+  case RP:
     updateWeights = false;
     break;
   case InstCount:
@@ -199,8 +196,10 @@ ExecutionState &WeightedRandomSearcher::selectState() {
 double WeightedRandomSearcher::getWeight(ExecutionState *es) {
   switch(type) {
   default:
-  case Depth: 
-    return es->weight;
+  case Depth:
+    return es->depth;
+  case RP:
+    return std::pow(0.5, es->depth);
   case InstCount: {
     uint64_t count = theStatisticManager->getIndexedValue(stats::instructions,
                                                           es->pc->info->id);
@@ -269,23 +268,23 @@ RandomPathSearcher::~RandomPathSearcher() {
 
 ExecutionState &RandomPathSearcher::selectState() {
   unsigned flips=0, bits=0;
-  PTree::Node *n = executor.processTree->root;
-  while (!n->data) {
+  PTreeNode *n = executor.processTree->root.get();
+  while (!n->state) {
     if (!n->left) {
-      n = n->right;
+      n = n->right.get();
     } else if (!n->right) {
-      n = n->left;
+      n = n->left.get();
     } else {
       if (bits==0) {
         flips = theRNG.getInt32();
         bits = 32;
       }
       --bits;
-      n = (flips&(1<<bits)) ? n->left : n->right;
+      n = (flips&(1<<bits)) ? n->left.get() : n->right.get();
     }
   }
 
-  return *n->data;
+  return *n->state;
 }
 
 void
@@ -300,9 +299,8 @@ bool RandomPathSearcher::empty() {
 
 ///
 
-MergingSearcher::MergingSearcher(Executor &_executor, Searcher *_baseSearcher)
-  : executor(_executor),
-  baseSearcher(_baseSearcher){}
+MergingSearcher::MergingSearcher(Searcher *_baseSearcher)
+  : baseSearcher(_baseSearcher){}
 
 MergingSearcher::~MergingSearcher() {
   delete baseSearcher;
@@ -311,8 +309,11 @@ MergingSearcher::~MergingSearcher() {
 ExecutionState& MergingSearcher::selectState() {
   assert(!baseSearcher->empty() && "base searcher is empty");
 
+  if (!UseIncompleteMerge)
+    return baseSearcher->selectState();
+
   // Iterate through all MergeHandlers
-  for (auto cur_mergehandler: executor.mergeGroups) {
+  for (auto cur_mergehandler: mergeGroups) {
     // Find one that has states that could be released
     if (!cur_mergehandler->hasMergedStates()) {
       continue;

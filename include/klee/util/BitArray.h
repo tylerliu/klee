@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef KLEE_UTIL_BITARRAY_H
-#define KLEE_UTIL_BITARRAY_H
+#ifndef KLEE_BITARRAY_H
+#define KLEE_BITARRAY_H
 
 #include <stdint.h>
 #include <string.h>
@@ -65,4 +65,4 @@ public:
 
 } // End klee namespace
 
-#endif
+#endif /* KLEE_BITARRAY_H */

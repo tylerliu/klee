@@ -9,10 +9,6 @@
 
 #include "Memory.h"
 #include "klee/ExecutionState.h"
-#include <fstream>
-#include <iostream>
-#include <ostream>
-#include <stdio.h>
 #include "TimingSolver.h"
 #include "klee/Internal/Module/Cell.h"
 #include "klee/Internal/Module/InstructionInfoTable.h"
@@ -23,8 +19,8 @@
 #include "klee/Internal/Support/ErrorHandling.h"
 #include "klee/LoopAnalysis.h"
 
-#include "klee/Expr.h"
-#include "klee/ExprBuilder.h"
+#include "klee/Expr/Expr.h"
+#include "klee/Expr/ExprBuilder.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/DebugInfo.h"
@@ -36,12 +32,15 @@
 
 #include <algorithm>
 #include <cassert>
+#include <fstream>
+#include <iostream>
+#include <cstdio>
 #include <iomanip>
 #include <map>
 #include <regex>
 #include <set>
 #include <sstream>
-#include <stdarg.h>
+#include <cstdarg>
 #include <tuple>
 
 using namespace llvm;
@@ -74,7 +73,8 @@ StackFrame::~StackFrame() { delete[] locals; }
 /***/
 
 ExecutionState::ExecutionState(KFunction *kf)
-    : pc(kf->instructions), prevPC(pc),
+    : pc(kf->instructions), 
+      prevPC(pc),
       executionStateForLoopInProcess(0),
       weight(1),
       depth(0),
@@ -83,7 +83,10 @@ ExecutionState::ExecutionState(KFunction *kf)
       forkDisabled(false),
       ptreeNode(0),
       steppedInstructions(0),
-      relevantSymbols(), doTrace(true), condoneUndeclaredHavocs(false), bpf_calls(0) {
+      relevantSymbols(), 
+      doTrace(true), 
+      condoneUndeclaredHavocs(false), 
+      bpf_calls(0) {
   pushFrame(0, kf);
 }
 
@@ -116,21 +119,30 @@ ExecutionState::~ExecutionState() {
   while (!stack.empty())
     popFrame();
 }
-
 ExecutionState::ExecutionState(const ExecutionState &state)
-    : fnAliases(state.fnAliases), readsIntercepts(state.readsIntercepts),
-      writesIntercepts(state.writesIntercepts), pc(state.pc),
-      prevPC(state.prevPC), stack(state.stack),
+    : fnAliases(state.fnAliases), 
+      readsIntercepts(state.readsIntercepts),
+      writesIntercepts(state.writesIntercepts), 
+      pc(state.pc),
+      prevPC(state.prevPC), 
+      stack(state.stack),
       incomingBBIndex(state.incomingBBIndex),
 
-      addressSpace(state.addressSpace), loopInProcess(state.loopInProcess),
-      analysedLoops(state.analysedLoops), executionStateForLoopInProcess(0),
+      addressSpace(state.addressSpace), 
+      loopInProcess(state.loopInProcess),
+      analysedLoops(state.analysedLoops), 
+      executionStateForLoopInProcess(0),
       constraints(state.constraints),
-      callPathInstr(state.callPathInstr), traceCallStack(state.traceCallStack), 
-      stackInstrMap(state.stackInstrMap), isTracing(state.isTracing),
-      queryCost(state.queryCost), weight(state.weight), depth(state.depth),
+      callPathInstr(state.callPathInstr), 
+      traceCallStack(state.traceCallStack), 
+      stackInstrMap(state.stackInstrMap), 
+      isTracing(state.isTracing),
+      queryCost(state.queryCost), 
+      weight(state.weight), 
+      depth(state.depth),
 
-      pathOS(state.pathOS), symPathOS(state.symPathOS),
+      pathOS(state.pathOS), 
+      symPathOS(state.symPathOS),
 
       instsSinceCovNew(state.instsSinceCovNew),
       coveredNew(state.coveredNew),
@@ -141,9 +153,11 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       arrayNames(state.arrayNames),
       openMergeStack(state.openMergeStack),
       steppedInstructions(state.steppedInstructions),
-      havocs(state.havocs), havocNames(state.havocNames),
+      havocs(state.havocs), 
+      havocNames(state.havocNames),
       callPath(state.callPath),
-      relevantSymbols(state.relevantSymbols), doTrace(state.doTrace),
+      relevantSymbols(state.relevantSymbols), 
+      doTrace(state.doTrace),
       condoneUndeclaredHavocs(state.condoneUndeclaredHavocs),
       bpf_calls(state.bpf_calls)
 {
@@ -176,9 +190,6 @@ ExecutionState *ExecutionState::branch() {
   falseState->coveredNew = false;
   falseState->coveredLines.clear();
 
-  weight *= .5;
-  falseState->weight -= weight;
-
   return falseState;
 }
 
@@ -197,7 +208,7 @@ void ExecutionState::popFrame() {
 
 void ExecutionState::addSymbolic(const MemoryObject *mo, const Array *array) {
   mo->refCount++;
-  symbolics.push_back(std::make_pair(mo, array));
+  symbolics.emplace_back(std::make_pair(ref<const MemoryObject>(mo), array));
 }
 ///
 
@@ -277,9 +288,9 @@ llvm::raw_ostream &klee::operator<<(llvm::raw_ostream &os,
   MemoryMap::iterator it = mm.begin();
   MemoryMap::iterator ie = mm.end();
   if (it != ie) {
-    os << "MO" << it->first->id << ":" << it->second;
+    os << "MO" << it->first->id << ":" << it->second.get();
     for (++it; it != ie; ++it)
-      os << ", MO" << it->first->id << ":" << it->second;
+      os << ", MO" << it->first->id << ":" << it->second.get();
   }
   os << "}";
   return os;
@@ -380,7 +391,7 @@ bool ExecutionState::merge(const ExecutionState &b) {
       }
       return false;
     }
-    if (ai->second != bi->second) {
+    if (ai->second.get() != bi->second.get()) {
       if (DebugLogStateMerge)
         llvm::errs() << "\t\tmutated: " << ai->first->id << "\n";
       mutated.insert(ai->first);

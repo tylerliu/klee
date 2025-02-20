@@ -13,16 +13,17 @@
 #include "Executor.h"
 #include "Memory.h"
 #include "MemoryManager.h"
+#include "Searcher.h"
 #include "TimingSolver.h"
-#include "klee/MergeHandler.h"
 
 #include "klee/ExecutionState.h"
 #include "klee/Internal/Module/KInstruction.h"
 #include "klee/Internal/Module/KModule.h"
 #include "klee/Internal/Support/Debug.h"
 #include "klee/Internal/Support/ErrorHandling.h"
+#include "klee/MergeHandler.h"
 #include "klee/OptionCategories.h"
-#include "klee/SolverCmdLine.h"
+#include "klee/Solver/SolverCmdLine.h"
 
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/DataLayout.h"
@@ -70,6 +71,7 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
                                 true, false, false }
   addDNR("__assert_rtn", handleAssertFail),
   addDNR("__assert_fail", handleAssertFail),
+  addDNR("__assert", handleAssertFail),
   addDNR("_assert", handleAssert),
   addDNR("abort", handleAbort),
   addDNR("_exit", handleExit),
@@ -451,16 +453,17 @@ void SpecialFunctionHandler::handleCloseMerge(ExecutionState &state,
   Instruction *i = target->inst;
 
   if (DebugLogMerge)
-    llvm::errs() << "close merge: " << &state << " at " << i << '\n';
+    llvm::errs() << "close merge: " << &state << " at [" << *i << "]\n";
 
   if (state.openMergeStack.empty()) {
     std::ostringstream warning;
     warning << &state << " ran into a close at " << i << " without a preceding open";
     klee_warning("%s", warning.str().c_str());
   } else {
-    assert(executor.inCloseMerge.find(&state) == executor.inCloseMerge.end() &&
+    assert(executor.mergingSearcher->inCloseMerge.find(&state) ==
+               executor.mergingSearcher->inCloseMerge.end() &&
            "State cannot run into close_merge while being closed");
-    executor.inCloseMerge.insert(&state);
+    executor.mergingSearcher->inCloseMerge.insert(&state);
     state.openMergeStack.back()->addClosedState(&state, i);
     state.openMergeStack.pop_back();
   }

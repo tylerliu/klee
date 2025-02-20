@@ -150,13 +150,6 @@ private:
                      llvm::BasicBlock *defaultBlock);
 };
 
-// This is the interface to a back-ported LLVM pass.
-// Therefore this interface is only needed for
-// LLVM 3.4.
-#if LLVM_VERSION_CODE == LLVM_VERSION(3, 4)
-llvm::FunctionPass *createScalarizerPass();
-#endif
-
 /// InstructionOperandTypeCheckPass - Type checks the types of instruction
 /// operands to check that they conform to invariants expected by the Executor.
 ///
@@ -172,6 +165,24 @@ public:
       : llvm::ModulePass(ID), instructionOperandsConform(true) {}
   bool runOnModule(llvm::Module &M) override;
   bool checkPassed() const { return instructionOperandsConform; }
+};
+
+/// FunctionAliasPass - Enables a user of KLEE to specify aliases to functions
+/// using -function-alias=<name|pattern>:<replacement> which are injected as
+/// GlobalAliases into the module. The replaced function is removed.
+class FunctionAliasPass : public llvm::ModulePass {
+
+public:
+  static char ID;
+  FunctionAliasPass() : llvm::ModulePass(ID) {}
+  bool runOnModule(llvm::Module &M) override;
+
+private:
+  static const llvm::FunctionType *getFunctionType(const llvm::GlobalValue *gv);
+  static bool checkType(const llvm::GlobalValue *match, const llvm::GlobalValue *replacement);
+  static bool tryToReplace(llvm::GlobalValue *match, llvm::GlobalValue *replacement);
+  static bool isFunctionOrGlobalFunctionAlias(const llvm::GlobalValue *gv);
+
 };
 
 #ifdef USE_WORKAROUND_LLVM_PR39177
@@ -195,4 +206,4 @@ public:
 };
 } // namespace klee
 
-#endif
+#endif /* KLEE_PASSES_H */
