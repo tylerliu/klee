@@ -9,7 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "klee/ExprBuilder.h"
+#include "klee/Expr/ExprBuilder.h"
 #include "klee/perf-contracts.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -17,9 +17,9 @@
 #include <klee/Expr/Parser/Parser.h>
 #include <fstream>
 #include <iostream>
-#include <klee/Constraints.h>
-#include <klee/Solver.h>
-#include <klee/util/ExprVisitor.h>
+#include <klee/Expr/Constraints.h>
+#include <klee/Solver/Solver.h>
+#include <klee/Expr/ExprVisitor.h>
 #include <stdlib.h>
 #include <vector>
 #include <deque>

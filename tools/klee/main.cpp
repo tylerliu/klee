@@ -14,6 +14,7 @@
 #include "klee/ExecutionState.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprBuilder.h"
+#include "klee/Expr/ExprPPrinter.h"
 #include "klee/Internal/ADT/KTest.h"
 #include "klee/Internal/ADT/TreeStream.h"
 #include "klee/Internal/Support/Debug.h"
@@ -27,7 +28,6 @@
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverCmdLine.h"
 #include "klee/Statistics.h"
-#include "klee/util/ExprPPrinter.h"
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(4, 0)
 #include "llvm/Bitcode/BitcodeWriter.h"
