@@ -1596,11 +1596,10 @@ void Executor::executeCall(ExecutionState &state,
 
 void Executor::addState(ExecutionState *current,
                         ExecutionState *fresh) {
-  current->ptreeNode->data = 0;
-  std::pair<PTree::Node*, PTree::Node*> res =
-    processTree->split(current->ptreeNode, current, fresh);
-  current->ptreeNode = res.first;
-  fresh->ptreeNode = res.second;
+  current->ptreeNode->state = 0;
+  processTree->attach(current->ptreeNode, current, fresh);
+  current->ptreeNode = current->ptreeNode->left.get();
+  fresh->ptreeNode = current->ptreeNode->right.get();
   addedStates.push_back(fresh);
 }
 
