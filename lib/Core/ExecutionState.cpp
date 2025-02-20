@@ -75,36 +75,39 @@ StackFrame::~StackFrame() { delete[] locals; }
 ExecutionState::ExecutionState(KFunction *kf)
     : pc(kf->instructions), 
       prevPC(pc),
-      executionStateForLoopInProcess(0),
+      executionStateForLoopInProcess(nullptr),
       weight(1),
       depth(0),
       instsSinceCovNew(0),
       coveredNew(false),
       forkDisabled(false),
       ptreeNode(0),
-      steppedInstructions(0),
       relevantSymbols(), 
       doTrace(true), 
       condoneUndeclaredHavocs(false), 
+      steppedInstructions(0),
       bpf_calls(0) {
   pushFrame(0, kf);
 }
 
 ExecutionState::ExecutionState(const std::vector<ref<Expr> > &assumptions)
-    : constraints(assumptions), executionStateForLoopInProcess(0),
-     ptreeNode(0), relevantSymbols(), doTrace(true),
-      condoneUndeclaredHavocs(false), bpf_calls(0) {}
+    : executionStateForLoopInProcess(nullptr),
+      constraints(assumptions), 
+      ptreeNode(0), 
+      relevantSymbols(), 
+      doTrace(true),
+      condoneUndeclaredHavocs(false), 
+      bpf_calls(0) {}
 
 ExecutionState::~ExecutionState() {
   for (auto cur_mergehandler: openMergeStack){
     cur_mergehandler->removeOpenState(this);
   }
 
-  delete executionStateForLoopInProcess;
-
   while (!stack.empty())
     popFrame();
 }
+
 ExecutionState::ExecutionState(const ExecutionState &state)
     : fnAliases(state.fnAliases), 
       readsIntercepts(state.readsIntercepts),
@@ -117,12 +120,12 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       addressSpace(state.addressSpace), 
       loopInProcess(state.loopInProcess),
       analysedLoops(state.analysedLoops), 
-      executionStateForLoopInProcess(0),
+      executionStateForLoopInProcess(nullptr),
       constraints(state.constraints),
+      isTracing(state.isTracing),
       callPathInstr(state.callPathInstr), 
       traceCallStack(state.traceCallStack), 
       stackInstrMap(state.stackInstrMap), 
-      isTracing(state.isTracing),
       queryCost(state.queryCost), 
       weight(state.weight), 
       depth(state.depth),
@@ -136,15 +139,15 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       coveredLines(state.coveredLines),
       ptreeNode(state.ptreeNode),
       symbolics(state.symbolics),
-      arrayNames(state.arrayNames),
-      openMergeStack(state.openMergeStack),
-      steppedInstructions(state.steppedInstructions),
       havocs(state.havocs), 
       havocNames(state.havocNames),
+      arrayNames(state.arrayNames),
       callPath(state.callPath),
       relevantSymbols(state.relevantSymbols), 
       doTrace(state.doTrace),
       condoneUndeclaredHavocs(state.condoneUndeclaredHavocs),
+      openMergeStack(state.openMergeStack),
+      steppedInstructions(state.steppedInstructions),
       bpf_calls(state.bpf_calls)
 {
   for (auto cur_mergehandler: openMergeStack)
@@ -977,7 +980,8 @@ void ExecutionState::loopEnter(const llvm::Loop *dstLoop) {
   /// case ther is an klee_induce_invariants call following.
   LOG_LA("store the loop-head entering state,"
          " just in case.");
-  executionStateForLoopInProcess = branch();
+  std::unique_ptr<ExecutionState> branch_state(branch());
+  executionStateForLoopInProcess.swap(branch_state);
   executionStateForLoopInProcess->loopInProcess = 0;
 }
 
@@ -1083,9 +1087,11 @@ void ExecutionState::startInvariantSearch() {
            "The klee_induce_invariants must be placed into the condition"
            " of a loop.");
 
+    std::unique_ptr<ExecutionState> loop_state(nullptr);
+    loop_state.swap(executionStateForLoopInProcess);
     loopInProcess =
-        new LoopInProcess(loop, executionStateForLoopInProcess, loopInProcess);
-    executionStateForLoopInProcess = 0;
+        new LoopInProcess(loop, std::move(loop_state), loopInProcess);
+    executionStateForLoopInProcess = nullptr;
   } else {
     LOG_LA("Already analysed, or being analysed at this very moment");
   }
@@ -1354,9 +1360,9 @@ SymbolSet CallInfo::computeRetSymbolSet() const {
 }
 
 LoopInProcess::LoopInProcess(const llvm::Loop *_loop,
-                             ExecutionState *_headerState,
+                             std::unique_ptr<ExecutionState> &&_headerState,
                              const ref<LoopInProcess> &_outer)
-    : outer(_outer), loop(_loop), restartState(_headerState),
+    : outer(_outer), loop(_loop), restartState(std::move(_headerState)),
       lastRoundUpdated(false) {
   // TODO: this can not belong here. It has nothing to do with execution state,
   // nor with ptree node.
@@ -1371,7 +1377,6 @@ LoopInProcess::~LoopInProcess() {
     delete i->second;
   }
   assert(restartState);
-  delete restartState;
 }
 
 unsigned countBitsSet(const BitArray *arr, unsigned size) {

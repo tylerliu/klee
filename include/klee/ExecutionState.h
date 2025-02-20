@@ -193,7 +193,7 @@ private:
   const llvm::Loop *loop; // Owner: KFunction::loopInfo
   // No circular dependency here: the restartState must not have
   // loop in process.
-  ExecutionState *restartState; // Owner.
+  std::unique_ptr<ExecutionState> restartState; // Owner.
   bool lastRoundUpdated;
   // Owner for the bitarrays.
   StateByteMask changedBytes;
@@ -204,7 +204,7 @@ private:
 public:
   // Captures ownership of the _headerState.
   // TODO: rewrite in terms of std::uniquePtr
-  LoopInProcess(const llvm::Loop *_loop, ExecutionState *_headerState,
+  LoopInProcess(const llvm::Loop *_loop, std::unique_ptr<ExecutionState> &&_headerState,
                 const ref<LoopInProcess> &_outer);
   ~LoopInProcess();
 
@@ -266,8 +266,7 @@ public:
 
   /// @brief This pointer keeps a copy of the state in case
   ///  we will need to process this loop. Owner.
-  // TODO: replace with std::unique_ptr;
-  ExecutionState *executionStateForLoopInProcess;
+  std::unique_ptr<ExecutionState> executionStateForLoopInProcess;
 
   /// @brief Constraints collected so far
   ConstraintManager constraints;
