@@ -184,9 +184,9 @@ class ExecutionState;
 /// dynamic loop invariant deduction.
 class LoopInProcess {
 public:
-  /// for the ref class. This count also determines how many
-  /// paths are in the loop.
-  int refCount;
+  /// @brief Required by klee::ref-managed objects
+  /// This count also determines how many paths are in the loop.
+  class ReferenceCounter _refCount;
 
 private:
   ref<LoopInProcess> outer;

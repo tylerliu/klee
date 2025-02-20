@@ -974,7 +974,7 @@ void ExecutionState::loopRepetition(const llvm::Loop *dstLoop,
     if (loopInProcess->getLoop() == dstLoop) {
       LOG_LA("[" << loopInProcess->getLoop() << "]The loop is in process.")
       loopInProcess->updateChangedObjects(*this, solver);
-      LOG_LA("refcount: " << loopInProcess->refCount);
+      LOG_LA("refcount: " << loopInProcess->_refCount.getCount());
       LOG_LA("Terminating the loop-repeating state.");
       *terminate = true;
       return;
@@ -1378,7 +1378,7 @@ SymbolSet CallInfo::computeRetSymbolSet() const {
 LoopInProcess::LoopInProcess(const llvm::Loop *_loop,
                              ExecutionState *_headerState,
                              const ref<LoopInProcess> &_outer)
-    : refCount(0), outer(_outer), loop(_loop), restartState(_headerState),
+    : _refCount(), outer(_outer), loop(_loop), restartState(_headerState),
       lastRoundUpdated(false) {
   // TODO: this can not belong here. It has nothing to do with execution state,
   // nor with ptree node.
@@ -1594,7 +1594,7 @@ void LoopInProcess::updateChangedObjects(const ExecutionState &current,
 }
 
 ExecutionState *LoopInProcess::nextRoundState(bool *analysisFinished) {
-  if (refCount == 1) {
+  if (_refCount.getCount() == 1) {
     // The last state in the round.
     if (!lastRoundUpdated) {
       LOG_LA("[" << loop
