@@ -14,7 +14,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <dlfcn.h>
-#include <expr/Parser.h>
+#include <klee/Expr/Parser/Parser.h>
 #include <fstream>
 #include <iostream>
 #include <klee/Constraints.h>

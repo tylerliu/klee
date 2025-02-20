@@ -1119,8 +1119,8 @@ void KleeHandler::processCallPath(const ExecutionState &state) {
       break;
   }
   *file << ";;-- Constraints --\n";
-  for (ConstraintManager::constraint_iterator ci = state.constraints.begin(),
-                                              cEnd = state.constraints.end();
+  for (ConstraintManager::const_iterator ci = state.constraints.begin(),
+                                         cEnd = state.constraints.end();
        ci != cEnd; ++ci) {
     *file << **ci << "\n";
   }
@@ -1219,8 +1219,8 @@ void KleeHandler::dumpCallPath(const ExecutionState &state,
       break;
   }
   *file << ";;-- Constraints --\n";
-  for (ConstraintManager::constraint_iterator ci = state.constraints.begin(),
-                                              cEnd = state.constraints.end();
+  for (ConstraintManager::const_iterator ci = state.constraints.begin(),
+                                         cEnd = state.constraints.end();
        ci != cEnd; ++ci) {
     *file << **ci << "\n";
   }
@@ -1229,7 +1229,7 @@ void KleeHandler::dumpCallPath(const ExecutionState &state,
   for (auto it : state.symbolics) {
     if (it.second->name.compare(0, sizeof("vigor_tag_") - 1, "vigor_tag_") ==
         0) {
-      const klee::ObjectState *addrOS = state.addressSpace.findObject(it.first);
+      const klee::ObjectState *addrOS = state.addressSpace.findObject(it.first.get());
       assert(addrOS && "Tag not set.");
 
       klee::ref<klee::Expr> addrExpr =
@@ -1879,7 +1879,7 @@ void ConstraintTree::addTest(int id, ExecutionState &state) {
 
     /* Iterating through constraints of existing test */
     ConstraintManager constraints(state.constraints);
-    ConstraintManager::constraint_iterator cit = last_test.second.begin();
+    ConstraintManager::const_iterator cit = last_test.second.begin();
     bool result;
     uint depths[2] = {0, 0};
     uint i; /* Needed for assert*/
@@ -1963,7 +1963,7 @@ void ConstraintTree::buildTree() {
 
       /* Iterating through constraints of existing test */
       ConstraintManager constraints = it1.second;
-      ConstraintManager::constraint_iterator cit = it.second.begin();
+      ConstraintManager::const_iterator cit = it.second.begin();
       bool result;
       uint i; /* Needed for assert*/
       for (i = 0; i < it.second.size(); i++, cit++) {

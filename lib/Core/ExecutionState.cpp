@@ -495,8 +495,8 @@ ExecutionState::relevantConstraints(SymbolSet symbols) const {
   bool newSymbols = false;
   do {
     newSymbols = false;
-    for (ConstraintManager::constraint_iterator ci = constraints.begin(),
-                                                cEnd = constraints.end();
+    for (ConstraintManager::const_iterator ci = constraints.begin(),
+                                           cEnd = constraints.end();
          ci != cEnd; ++ci) {
       if (insertedConstraints.count((*ci).get()))
         continue;
@@ -917,9 +917,9 @@ void ExecutionState::symbolizeConcretes() {
                            obj_E = addressSpace.objects.end();
        obj_I != obj_E; ++obj_I) {
     const MemoryObject *mo = obj_I->first;
-    ObjectState *os = obj_I->second;
+    auto& os = obj_I->second;
     if (!os->readOnly && os->isAccessible()) {
-      ObjectState *osw = addressSpace.getWriteable(mo, os);
+      ObjectState *osw = addressSpace.getWriteable(mo, os.get());
       const Array *array = osw->forgetAll();
       symbolics.push_back(std::make_pair(mo, array));
     }
@@ -1466,7 +1466,7 @@ bool klee::updateDiffMask(StateByteMask *mask, const AddressSpace &refValues,
                            e = refValues.objects.end();
        i != e; ++i) {
     const MemoryObject *obj = i->first;
-    const ObjectState *refOs = i->second;
+    const ObjectState *refOs = i->second.get();
     const ObjectState *os = state.addressSpace.findObject(obj);
     if (refOs == os)
       continue;
@@ -1618,7 +1618,7 @@ void ExecutionState::dumpConstraints() const {
     return;
   }
   *file << ";;-- Constraints --\n";
-  for (ConstraintManager::constraint_iterator ci = constraints.begin(),
+  for (ConstraintManager::const_iterator ci = constraints.begin(),
                                               cEnd = constraints.end();
        ci != cEnd; ++ci) {
     *file << **ci << "\n";
