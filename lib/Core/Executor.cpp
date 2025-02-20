@@ -1672,28 +1672,6 @@ Function* Executor::getTargetFunction(Value *calledVal, ExecutionState &state) {
   }
 }
 
-static inline const llvm::fltSemantics * fpWidthToSemantics(unsigned width) {
-  switch(width) {
-#if LLVM_VERSION_CODE >= LLVM_VERSION(4, 0)
-  case Expr::Int32:
-    return &llvm::APFloat::IEEEsingle();
-  case Expr::Int64:
-    return &llvm::APFloat::IEEEdouble();
-  case Expr::Fl80:
-    return &llvm::APFloat::x87DoubleExtended();
-#else
-  case Expr::Int32:
-    return &llvm::APFloat::IEEEsingle;
-  case Expr::Int64:
-    return &llvm::APFloat::IEEEdouble;
-  case Expr::Fl80:
-    return &llvm::APFloat::x87DoubleExtended;
-#endif
-  default:
-    return 0;
-  }
-}
-
 void dumpFields(std::map<int, klee::FieldDescr>* fields, size_t base,
                 const klee::ExecutionState& state) {
   std::map<int, klee::FieldDescr>::iterator i = fields->begin(),
