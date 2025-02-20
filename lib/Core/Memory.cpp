@@ -46,9 +46,6 @@ int MemoryObject::counter = 0;
 MemoryObject::~MemoryObject() {
   if (parent)
     parent->markFreed(this);
-  id = 0xdead;
-  refCount = 0xdead;
-  address = 0xdead;
 }
 
 void MemoryObject::getAllocInfo(std::string &result) const {
@@ -86,7 +83,6 @@ ObjectState::ObjectState(const MemoryObject *mo)
     size(mo->size),
     readOnly(false),
     accessible(true) {
-  mo->refCount++;
   if (!UseConstantArrays) {
     static unsigned id = 0;
     const Array *array =
@@ -108,7 +104,6 @@ ObjectState::ObjectState(const MemoryObject *mo, const Array *array)
     size(mo->size),
     readOnly(false),
     accessible(true) {
-  mo->refCount++;
   makeSymbolic();
   memset(concreteStore, 0, size);
 }
@@ -136,7 +131,7 @@ ObjectState::ObjectState(const ObjectState &os)
 }
 
 ObjectState::~ObjectState() {
-  assert(refCount == 0);
+  assert(_refCount.getCount() == 0);
   if (concreteMask) delete concreteMask;
   if (flushMask) delete flushMask;
   if (knownSymbolics) delete[] knownSymbolics;

@@ -369,7 +369,8 @@ public:
   void dumpCallPrefixesSExpr(std::list<CallInfo> accumulated_prefix,
                              KleeHandler *fileOpener);
 
-  int refCount;
+  /// @brief Required by klee::ref-managed objects
+  class ReferenceCounter _refCount;
 };
 
 class ConstraintTree {

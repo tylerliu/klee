@@ -96,24 +96,10 @@ ExecutionState::ExecutionState(const std::vector<ref<Expr> > &assumptions)
       condoneUndeclaredHavocs(false), bpf_calls(0) {}
 
 ExecutionState::~ExecutionState() {
-  for (unsigned int i = 0; i < symbolics.size(); i++) {
-    const MemoryObject *mo = symbolics[i].first;
-    assert(mo->refCount > 0);
-    mo->refCount--;
-    if (mo->refCount == 0)
-      delete mo;
-  }
-
   for (auto cur_mergehandler: openMergeStack){
     cur_mergehandler->removeOpenState(this);
   }
 
-  for (auto it = havocs.begin(); it != havocs.end(); ++it) {
-    const MemoryObject *mo = it->first;
-    mo->refCount--;
-    if (mo->refCount == 0)
-      delete mo;
-  }
   delete executionStateForLoopInProcess;
 
   while (!stack.empty())
@@ -161,15 +147,9 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       condoneUndeclaredHavocs(state.condoneUndeclaredHavocs),
       bpf_calls(state.bpf_calls)
 {
-  for (unsigned int i=0; i<symbolics.size(); i++)
-    symbolics[i].first->refCount++;
-
   for (auto cur_mergehandler: openMergeStack)
     cur_mergehandler->addOpenState(this);
 
-  for (auto it = havocs.begin(); it != havocs.end(); ++it) {
-    it->first->refCount++;
-  }
   if (!loopInProcess.isNull()) {
     LOG_LA("Cloning ES " << (void *)this << " from " << (void *)&state);
   }
@@ -180,7 +160,6 @@ void ExecutionState::addHavocInfo(const MemoryObject *mo,
   havocs[mo].name = name;
   havocs[mo].havoced = false;
   havocs[mo].mask = BitArray();
-  mo->refCount++;
 }
 
 ExecutionState *ExecutionState::branch() {
@@ -207,7 +186,6 @@ void ExecutionState::popFrame() {
 }
 
 void ExecutionState::addSymbolic(const MemoryObject *mo, const Array *array) {
-  mo->refCount++;
   symbolics.emplace_back(std::make_pair(ref<const MemoryObject>(mo), array));
 }
 ///
@@ -1378,7 +1356,7 @@ SymbolSet CallInfo::computeRetSymbolSet() const {
 LoopInProcess::LoopInProcess(const llvm::Loop *_loop,
                              ExecutionState *_headerState,
                              const ref<LoopInProcess> &_outer)
-    : _refCount(), outer(_outer), loop(_loop), restartState(_headerState),
+    : outer(_outer), loop(_loop), restartState(_headerState),
       lastRoundUpdated(false) {
   // TODO: this can not belong here. It has nothing to do with execution state,
   // nor with ptree node.
