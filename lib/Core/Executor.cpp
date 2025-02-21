@@ -1651,6 +1651,16 @@ Function* Executor::getTargetFunction(Value *calledVal, ExecutionState &state) {
     if (GlobalValue *gv = dyn_cast<GlobalValue>(c)) {
       if (!Visited.insert(gv).second)
         return 0;
+        
+      std::string alias = state.getFnAlias(gv->getName());
+      if (alias != "") {
+        GlobalValue *old_gv = gv;
+        gv = kmodule->module->getNamedValue(alias);
+        if (!gv) {
+          klee_error("Function %s(), alias for %s not found!\n", alias.c_str(),
+                      old_gv->getName().str().c_str());
+        }
+      }
 
       if (Function *f = dyn_cast<Function>(gv))
         return f;

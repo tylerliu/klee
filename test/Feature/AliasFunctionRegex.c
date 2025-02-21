@@ -4,6 +4,8 @@
 // RUN: grep -c foo %t1.log | grep 5
 // RUN: grep -c bar %t1.log | grep 4
 
+#include <klee/klee.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 

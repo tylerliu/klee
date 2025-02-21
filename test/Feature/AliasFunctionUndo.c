@@ -4,6 +4,8 @@
 // RUN: grep -c foo %t1.log | grep 5
 // RUN: grep -c bar %t1.log | grep 4
 
+#include <klee/klee.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -32,6 +34,6 @@ int main() {
   foo();
 
   // undo
-  klee_alias_undo("foo", "foo");
+  klee_alias_undo("foo");
   foo();
 }
