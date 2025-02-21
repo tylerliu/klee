@@ -1596,11 +1596,8 @@ void Executor::executeCall(ExecutionState &state,
 
 void Executor::addState(ExecutionState *current,
                         ExecutionState *fresh) {
-  current->ptreeNode->state = 0;
   processTree->attach(current->ptreeNode, current, fresh);
-  current->ptreeNode = current->ptreeNode->left.get();
-  fresh->ptreeNode = current->ptreeNode->right.get();
-  addedStates.push_back(fresh);
+  addedStates.push_back(fresh); // need to check if this causes invalid access
 }
 
 void Executor::handleLoopAnalysis(BasicBlock *dst, BasicBlock *src,
