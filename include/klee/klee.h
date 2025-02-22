@@ -272,8 +272,6 @@ void klee_trace_extra_ptr_nested_nested_field(void *ptr, int base_base_offset,
                                               int width, char *name,
                                               TracingDirection td);
 
-void klee_forget_all();
-
 int klee_induce_invariants();
 
 void klee_forbid_access(void *ptr, int width, char *message);

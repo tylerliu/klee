@@ -915,20 +915,6 @@ void ExecutionState::recordRetConstraints(CallInfo *info) const {
                              constrs.end());
 }
 
-void ExecutionState::symbolizeConcretes() {
-  for (MemoryMap::iterator obj_I = addressSpace.objects.begin(),
-                           obj_E = addressSpace.objects.end();
-       obj_I != obj_E; ++obj_I) {
-    const MemoryObject *mo = obj_I->first;
-    auto& os = obj_I->second;
-    if (!os->readOnly && os->isAccessible()) {
-      ObjectState *osw = addressSpace.getWriteable(mo, os.get());
-      const Array *array = osw->forgetAll();
-      symbolics.push_back(std::make_pair(mo, array));
-    }
-  }
-}
-
 ExecutionState *ExecutionState::finishLoopRound(KFunction *kf) {
   bool analysisFinished = false;
   ExecutionState *nextRoundState =

@@ -163,7 +163,6 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
   add("klee_trace_extra_ptr_nested_nested_field",
       handleTraceExtraPtrNestedNestedField, false),
   add("klee_trace_extra_fptr", handleTraceExtraFPtr, false),
-  add("klee_forget_all", handleForgetAll, false),
   add("klee_induce_invariants", handleInduceInvariants, true),
   add("klee_forbid_access", handleForbidAccess, false),
   add("klee_allow_access", handleAllowAccess, false),
@@ -1422,12 +1421,6 @@ void SpecialFunctionHandler::handleTraceParamFPtr(ExecutionState &state,
                                                   std::vector<ref<Expr> > &arguments) {
   std::string name = readStringAtAddress(state, arguments[1]);
   state.traceArgFunPtr(arguments[0], name);
-}
-
-void SpecialFunctionHandler::handleForgetAll
-(ExecutionState &state, KInstruction *target, std::vector<ref<Expr> > &arguments) {
-  state.constraints.clear();
-  state.symbolizeConcretes();
 }
 
 void SpecialFunctionHandler::handleInduceInvariants

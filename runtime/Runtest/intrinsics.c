@@ -379,8 +379,6 @@ void klee_trace_extra_ptr_nested_nested_field(void *ptr, int base_base_offset,
 
 void klee_map_symbol_names(char* symbol_name, int occurence, void*key, int width){}
 
-void klee_forget_all() {}
-
 void klee_forbid_access(void *ptr, int width, char *message) {}
 void klee_allow_access(void *ptr, int width) {}
 

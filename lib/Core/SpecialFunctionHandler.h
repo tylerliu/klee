@@ -168,7 +168,6 @@ public:
   HANDLER(handleTraceExtraPtrNestedField);
   HANDLER(handleTraceExtraPtrNestedNestedField);
   HANDLER(handleTraceExtraFPtr);
-  HANDLER(handleForgetAll);
   HANDLER(handleInduceInvariants);
   HANDLER(handleForbidAccess);
   HANDLER(handleAllowAccess);

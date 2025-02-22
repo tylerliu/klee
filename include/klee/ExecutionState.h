@@ -440,7 +440,6 @@ public:
   void recordRetConstraints(CallInfo *info) const;
 
   void dumpConstraints() const;
-  void symbolizeConcretes();
   ExecutionState *finishLoopRound(KFunction *kf);
   void updateLoopAnalysisForBlockTransfer(llvm::BasicBlock *dst,
                                           llvm::BasicBlock *src,
