@@ -383,8 +383,8 @@ public:
         PC << 'N' << it->second;
       } else {
         if (!hasScan || shouldPrint.count(e)) {
-          // PC << 'N' << counter << ':';
-          // bindings.insert(std::make_pair(e, counter++));
+          PC << 'N' << counter << ':';
+          bindings.insert(std::make_pair(e, counter++));
         }
 
         // Detect multibyte reads.
