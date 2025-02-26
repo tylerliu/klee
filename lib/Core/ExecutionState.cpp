@@ -980,6 +980,14 @@ void ExecutionState::loopExit(const llvm::Loop *srcLoop, bool *terminate) {
       *terminate = true;
       return;
     }
+  } else {
+    // no invariant analysis. Clean up.
+    if (executionStateForLoopInProcess) {
+      assert (executionStateForLoopInProcess->loopInProcess.isNull());
+      ExecutionState *replacement = nullptr;
+      executionStateForLoopInProcess->terminateState(&replacement);
+      executionStateForLoopInProcess = nullptr;
+    }
   }
   *terminate = false;
 }
