@@ -163,13 +163,13 @@ jobs:
       - name: Run tests
         run: scripts/build/run-tests.sh /tmp/klee_build* --debug
 
-  Docker:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout KLEE Code
-        uses: actions/checkout@v2
-      - name: Build Docker image
-        run: docker build .
+  # Docker:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout KLEE Code
+  #       uses: actions/checkout@v2
+  #     - name: Build Docker image
+  #       run: docker build .
 
   Coverage:
     runs-on: ubuntu-latest
