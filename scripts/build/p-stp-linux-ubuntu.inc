@@ -12,6 +12,7 @@ install_build_dependencies_stp() {
     flex
     git
     zlib1g-dev
+    pkg-config
   )
 
   #Install essential dependencies
