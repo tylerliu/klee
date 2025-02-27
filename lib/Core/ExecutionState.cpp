@@ -968,6 +968,12 @@ void ExecutionState::loopEnter(const llvm::Loop *dstLoop) {
          " just in case.");
   std::unique_ptr<ExecutionState> branch_state(branch());
   executionStateForLoopInProcess.swap(branch_state);
+
+  // this special executionState does not need open merge stack. 
+  for (auto cur_mergehandler: executionStateForLoopInProcess->openMergeStack){
+    cur_mergehandler->removeOpenState(executionStateForLoopInProcess.get());
+  }
+  executionStateForLoopInProcess->openMergeStack.clear();
   executionStateForLoopInProcess->loopInProcess = 0;
 }
 
