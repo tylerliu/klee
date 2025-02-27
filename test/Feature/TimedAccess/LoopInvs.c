@@ -8,6 +8,8 @@
 int main() {
   int x = 3;
   int y = klee_int("y");
+  klee_possibly_havoc(&x, sizeof(x), "x");
+  klee_possibly_havoc(&y, sizeof(y), "y");
   printf("first here\n");
   // CHECK: first here
   klee_forbid_access(&x, sizeof(int), "message");
@@ -21,10 +23,10 @@ int main() {
   // regardless of it being inaccessible between iterations.
   if (x < 0) {
     printf("x may be < 0\n");
-    // CHECK: x may be < 0
+    // CHECK-DAG: x may be < 0
   } else {
     printf("x may be >= 0\n");
-    // CHECK: x may be >= 0
+    // CHECK-DAG: x may be >= 0
   }
   printf("successfully returned\n");
   // CHECK: successfully returned

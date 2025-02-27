@@ -9,26 +9,7 @@
 // CHECK: open merge:
 // There will be 20 'close merge' statements. Only checking a few, the generated
 // test count will confirm that the merge was closed correctly
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
-// CHECK: close merge:
+// CHECK-COUNT-20: close merge:
 // CHECK-NOT: close merge:
 
 #include <klee/klee.h>
