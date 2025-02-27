@@ -50,6 +50,10 @@ namespace {
 cl::opt<bool> DebugLogStateMerge("debug-log-state-merge");
 }
 
+namespace klee {
+  extern cl::opt<bool> UseIncompleteMerge;
+}
+
 /***/
 
 StackFrame::StackFrame(KInstIterator _caller, KFunction *_kf)
@@ -966,14 +970,16 @@ void ExecutionState::loopEnter(const llvm::Loop *dstLoop) {
   /// case ther is an klee_induce_invariants call following.
   LOG_LA("store the loop-head entering state,"
          " just in case.");
-  std::unique_ptr<ExecutionState> branch_state(branch());
-  executionStateForLoopInProcess.swap(branch_state);
+  auto copied_state = std::make_unique<ExecutionState>(*this);
+  executionStateForLoopInProcess.swap(copied_state);
 
   // this special executionState does not need open merge stack. 
-  for (auto cur_mergehandler: executionStateForLoopInProcess->openMergeStack){
-    cur_mergehandler->removeOpenState(executionStateForLoopInProcess.get());
+  if (UseIncompleteMerge) {
+    for (auto cur_mergehandler: executionStateForLoopInProcess->openMergeStack){
+      cur_mergehandler->removeOpenState(executionStateForLoopInProcess.get());
+    }
+    executionStateForLoopInProcess->openMergeStack.clear();
   }
-  executionStateForLoopInProcess->openMergeStack.clear();
   executionStateForLoopInProcess->loopInProcess = 0;
 }
 
@@ -1086,6 +1092,9 @@ void ExecutionState::startInvariantSearch() {
     assert(loopInfo.isLoopHeader(bb) &&
            "The klee_induce_invariants must be placed into the condition"
            " of a loop.");
+    
+    assert(!UseIncompleteMerge &&
+           "Loop analysis is not supported with incomplete merge.");
 
     std::unique_ptr<ExecutionState> loop_state(nullptr);
     loop_state.swap(executionStateForLoopInProcess);
@@ -1389,7 +1398,7 @@ unsigned countBitsSet(const BitArray *arr, unsigned size) {
 }
 
 ExecutionState *LoopInProcess::makeRestartState() {
-  ExecutionState *newState = restartState->branch();
+  auto newState = new ExecutionState(*restartState);
   LOG_LA("Making restart state " << (void *)newState << " from "
                                  << (void *)restartState);
   for (std::map<const MemoryObject *, BitArray *>::iterator
