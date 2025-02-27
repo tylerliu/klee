@@ -13,6 +13,7 @@ install_build_dependencies_stp() {
     git
     zlib1g-dev
     pkg-config
+    libgmp-dev
   )
 
   #Install essential dependencies
