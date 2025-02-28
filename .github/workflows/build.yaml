@@ -36,6 +36,7 @@ jobs:
     strategy:
       matrix:
         name: [
+                "LLVM 10-focal",
                 "LLVM 10",
                 "LLVM 9",
                 "LLVM 8",
@@ -55,6 +56,10 @@ jobs:
                 "No TCMalloc, optimised runtime",
             ]
         include:
+          - name: "LLVM 10-focal"
+            env:
+              BASE_IMAGE: ubuntu:20.04
+              LLVM_VERSION: 10
           - name: "LLVM 10"
             env:
               LLVM_VERSION: 10
