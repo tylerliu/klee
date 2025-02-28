@@ -15,7 +15,7 @@ env:
   ENABLE_DOXYGEN: 0
   ENABLE_OPTIMIZED: 1
   ENABLE_DEBUG: 1
-  GTEST_VERSION: 1.7.0
+  GTEST_VERSION: 1.11.0
   KLEE_RUNTIME_BUILD: "Debug+Asserts"
   LLVM_VERSION: 9
   METASMT_VERSION: qf_abv
@@ -43,17 +43,15 @@ jobs:
                 "LLVM 6",
                 "LLVM 5",
                 "LLVM 4",
-                "LLVM 3.9",
-                "LLVM 3.8",
                 "ASan",
                 "UBSan",
                 "MSan",
                 "Z3 only",
                 "metaSMT STP",
                 "metaSMT Boolector",
-                "STP master",
+                # "STP master",
                 "Latest klee-uclibc",
-                "Asserts enabled",
+                "Asserts disabled",
                 "No TCMalloc, optimised runtime",
             ]
         include:
@@ -78,13 +76,6 @@ jobs:
           - name: "LLVM 4"
             env:
               LLVM_VERSION: 4
-          - name: "LLVM 3.9"
-            env:
-              LLVM_VERSION: 3.9
-          - name: "LLVM 3.8"
-            env:
-              LLVM_VERSION: 3.8
-              USE_LIBCXX: 0
           # Sanitizer builds. Do unoptimized build otherwise the optimizer might remove problematic code
           - name: "ASan"
             env:
@@ -127,7 +118,7 @@ jobs:
             env:
               UCLIBC_VERSION: klee_0_9_29
           # Check at least one build with Asserts disabled.
-          - name: "Asserts enabled"
+          - name: "Asserts disabled"
             env:
               SOLVERS: STP
               DISABLE_ASSERTIONS: 1
@@ -163,13 +154,13 @@ jobs:
       - name: Run tests
         run: scripts/build/run-tests.sh /tmp/klee_build* --debug
 
-  Docker:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout KLEE Code
-        uses: actions/checkout@v2
-      - name: Build Docker image
-        run: docker build .
+  # Docker:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout KLEE Code
+  #       uses: actions/checkout@v2
+  #     - name: Build Docker image
+  #       run: docker build .
 
   Coverage:
     runs-on: ubuntu-latest

@@ -20,7 +20,9 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#if LLVM_VERSION_CODE >= LLVM_VERSION(10, 0)
 #include "llvm/IR/IntrinsicsX86.h"
+#endif
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Pass.h"
