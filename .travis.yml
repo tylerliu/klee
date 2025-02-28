@@ -39,7 +39,7 @@ env:
     - DISABLE_ASSERTIONS: 0
     - ENABLE_OPTIMIZED: 1
     - ENABLE_DEBUG: 1
-    - GTEST_VERSION: 1.7.0
+    - GTEST_VERSION: 1.11.0
     - KLEE_RUNTIME_BUILD: "Debug+Asserts"
     - LLVM_VERSION: 6.0
     - METASMT_VERSION: qf_abv
