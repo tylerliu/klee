@@ -1,4 +1,5 @@
 install_build_dependencies_klee() {
+  
   apt update -y
 
   dependencies=(
@@ -16,7 +17,7 @@ install_build_dependencies_klee() {
   if [[ $(to_bool "${COVERAGE}") -eq 1 ]]; then
     dependencies+=(lcov curl)
   fi
-  apt -y --no-install-recommends install "${dependencies[@]}"
+  DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt -y --no-install-recommends install "${dependencies[@]}"
   ln -s /usr/bin/python3 /usr/bin/python
 
   pip3 install lit tabulate

@@ -22,7 +22,7 @@ install_build_dependencies_llvm() {
   fi
 
   #Install essential dependencies
-  apt -y --no-install-recommends install "${dependencies[@]}"
+  DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt -y --no-install-recommends install "${dependencies[@]}"
 }
 
 install_binary_artifact_llvm() {
