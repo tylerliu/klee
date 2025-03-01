@@ -10,8 +10,8 @@
 #include "klee/Expr/ExprPPrinter.h"
 
 #include "klee/Expr/Constraints.h"
-#include "klee/OptionCategories.h"
-#include "klee/util/PrintContext.h"
+#include "klee/Support/OptionCategories.h"
+#include "klee/Support/PrintContext.h"
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
@@ -143,7 +143,7 @@ private:
     auto head = updates.head;
 
     // Special case empty list.
-    if (head.isNull()) {
+    if (!head) {
       // FIXME: We need to do something (assert, mangle, etc.) so that printing
       // distinct arrays with the same name doesn't fail.
       PC << updates.root->name;
@@ -154,7 +154,7 @@ private:
     bool openedList = false, nextShouldBreak = false;
     unsigned outerIndent = PC.pos;
     unsigned middleIndent = 0;
-    for (auto un = head; !un.isNull(); un = un->next) {
+    for (auto un = head; un; un = un->next) {
       // We are done if we hit the cache.
       std::map<const UpdateNode *, unsigned>::iterator it =
           updateBindings.find(un.get());
@@ -468,7 +468,7 @@ void ExprPPrinter::printSingleExpr(llvm::raw_ostream &os, const ref<Expr> &e) {
 }
 
 void ExprPPrinter::printConstraints(llvm::raw_ostream &os,
-                                    const ConstraintManager &constraints) {
+                                    const ConstraintSet &constraints) {
   printQuery(os, constraints, ConstantExpr::alloc(false, Expr::Bool));
 }
 
@@ -481,17 +481,18 @@ struct ArrayPtrsByName {
 };
 } // namespace
 
-void ExprPPrinter::printQuery(
-    llvm::raw_ostream &os, const ConstraintManager &constraints,
-    const ref<Expr> &q, const ref<Expr> *evalExprsBegin,
-    const ref<Expr> *evalExprsEnd, const Array *const *evalArraysBegin,
-    const Array *const *evalArraysEnd, bool printArrayDecls) {
+void ExprPPrinter::printQuery(llvm::raw_ostream &os,
+                              const ConstraintSet &constraints,
+                              const ref<Expr> &q,
+                              const ref<Expr> *evalExprsBegin,
+                              const ref<Expr> *evalExprsEnd,
+                              const Array * const *evalArraysBegin,
+                              const Array * const *evalArraysEnd,
+                              bool printArrayDecls) {
   PPrinter p(os);
 
-  for (ConstraintManager::const_iterator it = constraints.begin(),
-                                         ie = constraints.end();
-       it != ie; ++it)
-    p.scan(*it);
+  for (const auto &constraint : constraints)
+    p.scan(constraint);
   p.scan(q);
 
   for (const ref<Expr> *it = evalExprsBegin; it != evalExprsEnd; ++it)
@@ -531,9 +532,7 @@ void ExprPPrinter::printQuery(
 
   // Ident at constraint list;
   unsigned indent = PC.pos;
-  for (ConstraintManager::const_iterator it = constraints.begin(),
-                                         ie = constraints.end();
-       it != ie;) {
+  for (auto it = constraints.begin(), ie = constraints.end(); it != ie;) {
     p.print(*it, PC);
     ++it;
     if (it != ie)

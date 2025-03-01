@@ -121,6 +121,8 @@ public:
   HANDLER(handleMakeSymbolic);
   HANDLER(handleMalloc);
   HANDLER(handleMemalign);
+  HANDLER(handleEhUnwindRaiseExceptionImpl);
+  HANDLER(handleEhTypeid);
   HANDLER(handleMarkGlobal);
   HANDLER(handleOpenMerge);
   HANDLER(handleCloseMerge);

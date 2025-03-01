@@ -9,7 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "klee/Internal/ADT/KTest.h"
+#include "klee/ADT/KTest.h"
 #include "llvm/Support/CommandLine.h"
 #include <iostream>
 #include <map>

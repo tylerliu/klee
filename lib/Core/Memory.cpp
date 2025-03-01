@@ -10,14 +10,15 @@
 #include "Memory.h"
 
 #include "Context.h"
+#include "ExecutionState.h"
 #include "MemoryManager.h"
 
+#include "klee/ADT/BitArray.h"
 #include "klee/Expr/ArrayCache.h"
 #include "klee/Expr/Expr.h"
-#include "klee/Internal/Support/ErrorHandling.h"
-#include "klee/OptionCategories.h"
+#include "klee/Support/OptionCategories.h"
 #include "klee/Solver/Solver.h"
-#include "klee/util/BitArray.h"
+#include "klee/Support/ErrorHandling.h"
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
@@ -139,7 +140,7 @@ ObjectState::~ObjectState() {
 }
 
 ArrayCache *ObjectState::getArrayCache() const {
-  assert(!object.isNull() && "object was NULL");
+  assert(object && "object was NULL");
   return object->parent->getArrayCache();
 }
 
@@ -153,7 +154,7 @@ const UpdateList &ObjectState::getUpdates() const {
     // FIXME: We should be able to do this more efficiently, we just need to be
     // careful to get the interaction with the cache right. In particular we
     // should avoid creating UpdateNode instances we never use.
-    unsigned NumWrites = updates.head.isNull() ? 0 : updates.head->getSize();
+    unsigned NumWrites = updates.head ? updates.head->getSize() : 0;
     std::vector< std::pair< ref<Expr>, ref<Expr> > > Writes(NumWrites);
     const auto *un = updates.head.get();
     for (unsigned i = NumWrites; i != 0; un = un->next.get()) {
@@ -201,7 +202,8 @@ void ObjectState::flushToConcreteStore(TimingSolver *solver,
   for (unsigned i = 0; i < size; i++) {
     if (isByteKnownSymbolic(i)) {
       ref<ConstantExpr> ce;
-      bool success = solver->getValue(state, read8(i), ce);
+      bool success = solver->getValue(state.constraints, read8(i), ce,
+                                      state.queryMetaData);
       if (!success)
         klee_warning("Solver timed out when getting a value for external call, "
                      "byte %p+%u will have random value",
@@ -222,7 +224,7 @@ void ObjectState::makeConcrete() {
 }
 
 void ObjectState::makeSymbolic() {
-  assert(updates.head.isNull() &&
+  assert(!updates.head &&
          "XXX makeSymbolic of objects with symbolic values is unsupported");
 
   // XXX simplify this, can just delete various arrays I guess

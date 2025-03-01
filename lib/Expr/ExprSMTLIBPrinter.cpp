@@ -8,8 +8,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Expr/ExprSMTLIBPrinter.h"
+#include "klee/Support/Casting.h"
 
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 
@@ -503,9 +503,8 @@ void ExprSMTLIBPrinter::printUpdatesAndArray(const UpdateNode *un,
 
 void ExprSMTLIBPrinter::scanAll() {
   // perform scan of all expressions
-  for (ConstraintManager::const_iterator i = query->constraints.begin();
-       i != query->constraints.end(); i++)
-    scan(*i);
+  for (const auto &constraint : query->constraints)
+    scan(constraint);
 
   // Scan the query too
   scan(query->expr);
@@ -630,10 +629,8 @@ void ExprSMTLIBPrinter::printHumanReadableQuery() {
 
   if (abbrMode != ABBR_LET) {
     // Generate assert statements for each constraint
-    for (ConstraintManager::const_iterator i = query->constraints.begin();
-         i != query->constraints.end(); i++) {
-      printAssert(*i);
-    }
+    for (const auto &constraint : query->constraints)
+      printAssert(constraint);
 
     *o << "; QueryExpr\n";
 
@@ -695,7 +692,7 @@ void ExprSMTLIBPrinter::printAction() {
 }
 
 void ExprSMTLIBPrinter::scan(const ref<Expr> &e) {
-  assert(!(e.isNull()) && "found NULL expression");
+  assert(e && "found NULL expression");
 
   if (isa<ConstantExpr>(e))
     return; // we don't need to scan simple constants

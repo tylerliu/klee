@@ -20,7 +20,7 @@
 
 #include "klee/klee.h"
 
-#include "klee/Internal/ADT/KTest.h"
+#include "klee/ADT/KTest.h"
 
 #define MAX_HAVOCED_PLACES (1048576)
 #define NUM_LEN (4)
@@ -256,6 +256,8 @@ uintptr_t klee_choose(uintptr_t n) {
   return x;
 }
 
+unsigned klee_is_replay() { return 1; }
+
 void klee_assume(uintptr_t x) {
   if (!x) {
     report_internal_error("invalid klee_assume");
@@ -295,16 +297,19 @@ int klee_int(const char *name) {
   return x;
 }
 
-void klee_prefer_cex(void *object, uintptr_t condition) { }
+void klee_prefer_cex(void *object, uintptr_t condition) {}
 
-void klee_abort() {
-  abort();
-}
+void klee_abort() { abort(); }
+
+void klee_print_expr(const char *msg, ...) {}
 
 /* not sure we should even define.  is for debugging. */
 void klee_print_expr(const char *msg, ...) {}
 
 void klee_set_forking(unsigned enable) {}
+
+void klee_open_merge() {}
+void klee_close_merge() {}
 
 // Vigor: just ignore them
 

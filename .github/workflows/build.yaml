@@ -36,6 +36,7 @@ jobs:
     strategy:
       matrix:
         name: [
+                "LLVM 11",
                 "LLVM 10",
                 "LLVM 9",
                 "LLVM 8",
@@ -49,12 +50,15 @@ jobs:
                 "Z3 only",
                 "metaSMT STP",
                 "metaSMT Boolector",
-                # "STP master",
+                "STP master",
                 "Latest klee-uclibc",
-                "Asserts disabled",
+                "Asserts enabled",
                 "No TCMalloc, optimised runtime",
             ]
         include:
+          - name: "LLVM 11"
+            env:
+              LLVM_VERSION: 11
           - name: "LLVM 10"
             env:
               LLVM_VERSION: 10
@@ -134,7 +138,7 @@ jobs:
         env: ${{ matrix.env }}
         run: scripts/build/build.sh klee --docker --create-final-image
       - name: Run tests
-        run: sudo scripts/build/run-tests.sh --run-docker --debug
+        run: scripts/build/run-tests.sh --run-docker --debug
 
   macOS:
     runs-on: macos-latest
@@ -173,4 +177,4 @@ jobs:
       - name: Build KLEE
         run: scripts/build/build.sh klee --docker --create-final-image
       - name: Run tests
-        run: sudo scripts/build/run-tests.sh --coverage --upload-coverage --run-docker --debug
+        run: scripts/build/run-tests.sh --coverage --upload-coverage --run-docker --debug
