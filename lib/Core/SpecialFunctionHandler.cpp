@@ -1636,11 +1636,11 @@ void SpecialFunctionHandler::handlePossiblyHavoc(ExecutionState &state,
     // FIXME: Type coercion should be done consistently somewhere.
     bool res;
     bool success __attribute__ ((unused)) =
-      executor.solver->mustBeTrue(*s, 
+      executor.solver->mustBeTrue(s->constraints, 
                                   EqExpr::create(ZExtExpr::create(arguments[1],
                                                                   Context::get().getPointerWidth()),
                                                  mo->getSizeExpr()),
-                                  res);
+                                  res, s->queryMetaData);
     assert(success && "FIXME: Unhandled solver failure");
     
     if (res) {

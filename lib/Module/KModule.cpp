@@ -10,6 +10,8 @@
 #define DEBUG_TYPE "KModule"
 
 #include "Passes.h"
+#include "../Core/ExecutionState.h"
+#include "LoopAnalysis.h"
 
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
@@ -21,8 +23,6 @@
 #include "klee/Support/Debug.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/Support/ModuleUtil.h"
-#include "klee/Interpreter.h"
-#include "ExecutionState.h"
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(4, 0)
 #include "llvm/Bitcode/BitcodeWriter.h"

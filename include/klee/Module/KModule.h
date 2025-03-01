@@ -12,7 +12,6 @@
 
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
-#include "LoopAnalysis.h"
 
 //TODO: generalize for other LLVM versions like the above
 #include "llvm/Analysis/LoopInfo.h"
@@ -43,6 +42,12 @@ namespace klee {
   template<class T> class ref;
   class ExecutionState;
   class TimingSolver;
+  class LoopEntryState;
+  class MemoryObject;
+  class BitArray;
+  
+  /// A global bytemask for all the memory of a program.
+using StateByteMask = std::map<const MemoryObject *, BitArray *>;
 
   struct KFunction {
     llvm::Function *function;

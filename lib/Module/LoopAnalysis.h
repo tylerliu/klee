@@ -10,9 +10,8 @@
 #ifndef LOOP_ANALYSIS_H
 #define LOOP_ANALYSIS_H
 
-#include "klee/util/BitArray.h"
-// FIXME: We do not want to be exposing these? :(
-#include "../../lib/Core/AddressSpace.h"
+#include "klee/ADT/BitArray.h"
+#include "../Core/AddressSpace.h"
 
 namespace klee {
 class MemoryObject;
@@ -20,7 +19,7 @@ class ExecutionState;
 class TimingSolver;
 
 /// A global bytemask for all the memory of a program.
-typedef std::map<const MemoryObject *, BitArray *> StateByteMask;
+using StateByteMask = std::map<const MemoryObject *, BitArray *>;
 
 struct LoopEntryState {
   StateByteMask forgetMask;

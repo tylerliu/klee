@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-#include "klee/util/BitArray.h"
+#include "klee/ADT/BitArray.h"
 
 struct KTest;
 

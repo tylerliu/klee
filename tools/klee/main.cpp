@@ -9,7 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Memory.h"
+#include "../../lib/Core/Memory.h"
+#include "../../lib/Core/ExecutionState.h"
 #include "klee/ADT/TreeStream.h"
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
@@ -385,7 +386,7 @@ public:
 
 class ConstraintTree {
   /* Index of vector is  */
-  std::vector<std::pair<int, ConstraintManager>> seen_tests;
+  std::vector<std::pair<int, ConstraintSet>> seen_tests;
   /* Key is a pair of test-cases. Value is the depth at which they diverge and
    * the constraint on which they diverge */
   std::map<std::pair<int, int>, int> overlap_depth;
@@ -1129,8 +1130,8 @@ void KleeHandler::processCallPath(const ExecutionState &state) {
       break;
   }
   *file << ";;-- Constraints --\n";
-  for (ConstraintManager::const_iterator ci = state.constraints.begin(),
-                                         cEnd = state.constraints.end();
+  for (ConstraintSet::const_iterator ci = state.constraints.begin(),
+                                     cEnd = state.constraints.end();
        ci != cEnd; ++ci) {
     *file << **ci << "\n";
   }
@@ -1229,8 +1230,8 @@ void KleeHandler::dumpCallPath(const ExecutionState &state,
       break;
   }
   *file << ";;-- Constraints --\n";
-  for (ConstraintManager::const_iterator ci = state.constraints.begin(),
-                                         cEnd = state.constraints.end();
+  for (ConstraintSet::const_iterator ci = state.constraints.begin(),
+                                     cEnd = state.constraints.end();
        ci != cEnd; ++ci) {
     *file << **ci << "\n";
   }
@@ -1546,38 +1547,39 @@ std::string KleeHandler::getRunTimeLibraryPath(const char *argv0) {
   if (env)
     return std::string(env);
 
-  // Take any function from the execution binary but not main (as not allowed
-  // by C++ standard)
+  // Take any function from the execution binary but not main (as not allowed by
+  // C++ standard)
   void *MainExecAddr = (void *)(intptr_t)getRunTimeLibraryPath;
   SmallString<128> toolRoot(
-      llvm::sys::fs::getMainExecutable(argv0, MainExecAddr));
+      llvm::sys::fs::getMainExecutable(argv0, MainExecAddr)
+      );
 
   // Strip off executable so we have a directory path
   llvm::sys::path::remove_filename(toolRoot);
 
   SmallString<128> libDir;
 
-  if (strlen(KLEE_INSTALL_BIN_DIR) != 0 &&
-      strlen(KLEE_INSTALL_RUNTIME_DIR) != 0 &&
-      toolRoot.str().endswith(KLEE_INSTALL_BIN_DIR)) {
-    KLEE_DEBUG_WITH_TYPE("klee_runtime",
-                         llvm::dbgs()
-                             << "Using installed KLEE library runtime: ");
-    libDir = toolRoot.str().substr(0, toolRoot.str().size() -
-                                          strlen(KLEE_INSTALL_BIN_DIR));
+  if (strlen( KLEE_INSTALL_BIN_DIR ) != 0 &&
+      strlen( KLEE_INSTALL_RUNTIME_DIR ) != 0 &&
+      toolRoot.str().endswith( KLEE_INSTALL_BIN_DIR ))
+  {
+    KLEE_DEBUG_WITH_TYPE("klee_runtime", llvm::dbgs() <<
+                         "Using installed KLEE library runtime: ");
+    libDir = toolRoot.str().substr(0,
+               toolRoot.str().size() - strlen( KLEE_INSTALL_BIN_DIR ));
     llvm::sys::path::append(libDir, KLEE_INSTALL_RUNTIME_DIR);
-  } else {
-    KLEE_DEBUG_WITH_TYPE("klee_runtime",
-                         llvm::dbgs()
-                             << "Using build directory KLEE library runtime :");
+  }
+  else
+  {
+    KLEE_DEBUG_WITH_TYPE("klee_runtime", llvm::dbgs() <<
+                         "Using build directory KLEE library runtime :");
     libDir = KLEE_DIR;
-    llvm::sys::path::append(libDir, RUNTIME_CONFIGURATION);
-    llvm::sys::path::append(libDir, "lib");
+    llvm::sys::path::append(libDir, "runtime/lib");
   }
 
-  KLEE_DEBUG_WITH_TYPE("klee_runtime", llvm::dbgs() << 
+  KLEE_DEBUG_WITH_TYPE("klee_runtime", llvm::dbgs() <<
                        libDir.c_str() << "\n");
-  return libDir.str();
+  return libDir.c_str();
 }
 
 void CallTree::addCallPath(std::vector<CallInfo>::const_iterator path_begin,
@@ -1883,14 +1885,14 @@ void CallTree::dumpCallPrefixesSExpr(std::list<CallInfo> accumulated_prefix,
 
 void ConstraintTree::addTest(int id, ExecutionState &state) {
 
-  std::pair<int, ConstraintManager> last_test;
+  std::pair<int, ConstraintSet> last_test;
   if (id) {
     last_test = seen_tests.back();
     assert(id == last_test.first + 1 && "Wrong order of tests to be added");
 
     /* Iterating through constraints of existing test */
-    ConstraintManager constraints(state.constraints);
-    ConstraintManager::const_iterator cit = last_test.second.begin();
+    ConstraintSet constraints(state.constraints);
+    ConstraintSet::const_iterator cit = last_test.second.begin();
     bool result;
     uint depths[2] = {0, 0};
     uint i; /* Needed for assert*/
@@ -1925,8 +1927,9 @@ void ConstraintTree::addTest(int id, ExecutionState &state) {
     assert(i < state.constraints.size() && "Could not find an unsat constraint");
 
     /* Some checks */
-    ConstraintManager branch_constraints;
-    branch_constraints.addConstraint(unsat_constraints[0]);
+    ConstraintSet branch_constraints;
+    ConstraintManager branch_constraints_manager(branch_constraints);
+    branch_constraints_manager.addConstraint(unsat_constraints[0]);
     klee::Query sat_query(branch_constraints, unsat_constraints[1]);
     result = false;
     bool success = solver->mayBeTrue(sat_query, result);
@@ -1938,14 +1941,15 @@ void ConstraintTree::addTest(int id, ExecutionState &state) {
 
     if (depths[0] > depths[1]) {
 
-      ConstraintManager final_constraints;
+      ConstraintSet final_constraints;
+      ConstraintManager final_constraints_manager(final_constraints);
       /* Fixing constraints */
       for (i = 0, cit = last_test.second.begin(); i < depths[0]; i++, cit++)
-        final_constraints.addConstraint(*cit);
+        final_constraints_manager.addConstraint(*cit);
 
       for (i = depths[1], cit = state.constraints.begin() + depths[1];
            i < state.constraints.size(); i++, cit++)
-        final_constraints.addConstraint(*cit);
+        final_constraints_manager.addConstraint(*cit);
 
       state.constraints = final_constraints;
     }
@@ -1973,8 +1977,8 @@ void ConstraintTree::buildTree() {
       std::pair<int, int> test_pair = std::minmax(it1.first, it.first);
 
       /* Iterating through constraints of existing test */
-      ConstraintManager constraints = it1.second;
-      ConstraintManager::const_iterator cit = it.second.begin();
+      ConstraintSet constraints = it1.second;
+      ConstraintSet::const_iterator cit = it.second.begin();
       bool result;
       uint i; /* Needed for assert*/
       for (i = 0; i < it.second.size(); i++, cit++) {
@@ -2008,8 +2012,9 @@ void ConstraintTree::buildTree() {
       }
       assert(first_iter_depth == i &&
              "Tree generation algorithm will fail due to mismatched prefixes");
-      ConstraintManager branch_constraints;
-      branch_constraints.addConstraint(branch1);
+      ConstraintSet branch_constraints;
+      ConstraintManager branch_constraints_manager(branch_constraints);
+      branch_constraints_manager.addConstraint(branch1);
       klee::Query sat_query(branch_constraints, *cit);
       result = false;
       bool success = solver->mayBeTrue(sat_query, result);
@@ -2301,7 +2306,7 @@ void externalsAndGlobalsCheck(const llvm::Module *m) {
   case LibcType::UcLibc:
     dontCare.insert(dontCareUclibc, dontCareUclibc + NELEMS(dontCareUclibc));
     break;
-  case LibcType::FreestandingLibc: /* silence compiler warning */
+  case LibcType::FreeStandingLibc: /* silence compiler warning */
     break;
   }
 
@@ -2711,7 +2716,7 @@ int main(int argc, char **argv, char **envp) {
                  errorMsg.c_str());
   }
   /* Falls through. */
-  case LibcType::FreestandingLibc: {
+  case LibcType::FreeStandingLibc: {
     SmallString<128> Path(Opts.LibraryDir);
     llvm::sys::path::append(Path,
                             "libkleeRuntimeFreestanding" + opt_suffix + ".bca");

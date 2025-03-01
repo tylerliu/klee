@@ -162,7 +162,6 @@ unsigned count_reuse(char *name) {
     if (name_len <= candidate_len &&
         0 == strncmp(name, havoced_places[i].name, name_len)) {
       unsigned j = name_len;
-      int num_suffix = 1;
       int non_numerical = 0;
       if (name_len < candidate_len && havoced_places[i].name[name_len] != '_') {
         continue;
@@ -301,9 +300,6 @@ void klee_prefer_cex(void *object, uintptr_t condition) {}
 
 void klee_abort() { abort(); }
 
-void klee_print_expr(const char *msg, ...) {}
-
-/* not sure we should even define.  is for debugging. */
 void klee_print_expr(const char *msg, ...) {}
 
 void klee_set_forking(unsigned enable) {}

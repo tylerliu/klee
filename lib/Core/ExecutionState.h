@@ -16,11 +16,11 @@
 #include "klee/ADT/TreeStream.h"
 #include "klee/Solver/Solver.h"
 #include "klee/System/Time.h"
-#include "klee/util/GetExprSymbols.h"
+#include "klee/ADT/GetExprSymbols.h"
 
 #include "AddressSpace.h"
 #include "MergeHandler.h"
-#include "LoopAnalysis.h"
+#include "../Module/LoopAnalysis.h"
 #include "klee/Module/KInstIterator.h"
 
 // TODO: generalize for otehr LLVM versions like the above
@@ -306,8 +306,6 @@ public:
   using stack_ty = std::vector<StackFrame>;
 
 private:
-  // unsupported, use copy constructor
-  ExecutionState &operator=(const ExecutionState &);
 
   // function alias and hardware intercepts related states
   std::vector<FunctionAlias> fnAliases;

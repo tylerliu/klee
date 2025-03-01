@@ -13,14 +13,14 @@
 #include "klee/perf-contracts.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "klee/Expr/Parser/Parser.h"
+#include "klee/Expr/Constraints.h"
+#include "klee/Expr/ExprVisitor.h"
+#include "klee/Solver/Solver.h"
 #include <dlfcn.h>
-#include <klee/Expr/Parser/Parser.h>
 #include <fstream>
 #include <iostream>
-#include <klee/Expr/Constraints.h>
-#include <klee/Solver/Solver.h>
-#include <klee/Expr/ExprVisitor.h>
-#include <stdlib.h>
+#include <cstdlib>
 #include <vector>
 #include <deque>
 
@@ -69,7 +69,7 @@ bool operator<(initial_var_t a, initial_var_t b) {
 }
 
 typedef struct {
-  klee::ConstraintManager constraints;
+  klee::ConstraintSet constraints;
   std::vector<call_t> calls;
   std::map<std::string, const klee::Array *> arrays;
   std::map<initial_var_t, klee::ref<klee::Expr>> initial_extra_vars;
@@ -194,12 +194,12 @@ call_path_t *load_call_path(std::string file_name,
               assert(!P->GetNumErrors() &&
                      "Error parsing kquery in call path file.");
               if (klee::expr::ArrayDecl *AD =
-                      dyn_cast<klee::expr::ArrayDecl>(D)) {
+                      llvm::dyn_cast<klee::expr::ArrayDecl>(D)) {
                 call_path->arrays[AD->Root->name] = AD->Root;
               } else if (klee::expr::QueryCommand *QC =
-                             dyn_cast<klee::expr::QueryCommand>(D)) {
+                             llvm::dyn_cast<klee::expr::QueryCommand>(D)) {
                 call_path->constraints =
-                    klee::ConstraintManager(QC->Constraints);
+                    klee::ConstraintSet(QC->Constraints);
                 exprs = QC->Values;
                 break;
               }
@@ -459,7 +459,8 @@ std::map<std::string, long> process_candidate(
   solver = createCachingSolver(solver);
   solver = createIndependentSolver(solver);
 
-  klee::ConstraintManager constraints = call_path->constraints;
+  klee::ConstraintSet constraints = call_path->constraints;
+  klee::ConstraintManager constraints_manager(constraints);
 
   klee::ExprBuilder *exprBuilder = klee::createDefaultExprBuilder();
   for (auto extra_var : call_path->initial_extra_vars) {
@@ -482,7 +483,7 @@ std::map<std::string, long> process_candidate(
     klee::ref<klee::Expr> eq_expr =
         exprBuilder->Eq(read_expr, extra_var.second);
 
-    constraints.addConstraint(eq_expr);
+    constraints_manager.addConstraint(eq_expr);
   }
 
   for (auto var : vars) {
@@ -555,7 +556,7 @@ std::map<std::string, long> process_candidate(
             return {};
           }
 
-          constraints.addConstraint(eq_expr);
+          constraints_manager.addConstraint(eq_expr);
         }
       }
     } else if (call_path->initial_extra_vars.count(var.first)) {
@@ -577,7 +578,7 @@ std::map<std::string, long> process_candidate(
         return {};
       }
 
-      constraints.addConstraint(eq_expr);
+      constraints_manager.addConstraint(eq_expr);
     } else {
       std::cerr << "Warning: ignoring variable: " << var.first.name << "_"
                 << var.first.ds_id << "_" << var.first.occurence << std::endl;
@@ -608,7 +609,8 @@ std::map<std::string, long> process_candidate(
       continue;
     }
 
-    klee::ConstraintManager call_constraints = constraints;
+    klee::ConstraintSet call_constraints = constraints;
+    klee::ConstraintManager call_constraints_manager(call_constraints);
 
     for (auto extra_var : cit.extra_vars) {
       std::string current_name = "current_" + extra_var.first;
@@ -627,7 +629,7 @@ std::map<std::string, long> process_candidate(
       klee::ref<klee::Expr> eq_expr =
           exprBuilder->Eq(read_expr, extra_var.second.first);
 
-      call_constraints.addConstraint(eq_expr);
+      call_constraints_manager.addConstraint(eq_expr);
     }
 
     bool found_subcontract = false;
@@ -857,7 +859,8 @@ int main(int argc, char **argv, char **envp) {
   solver = createCachingSolver(solver);
   solver = createIndependentSolver(solver);
 
-  klee::ConstraintManager constraints = call_path->constraints;
+  klee::ConstraintSet constraints = call_path->constraints;
+  klee::ConstraintManager constraints_manager(constraints);
 
   klee::ExprBuilder *exprBuilder = klee::createDefaultExprBuilder();
   for (auto extra_var : call_path->initial_extra_vars) {
@@ -880,7 +883,7 @@ int main(int argc, char **argv, char **envp) {
     klee::ref<klee::Expr> eq_expr =
         exprBuilder->Eq(read_expr, extra_var.second);
 
-    constraints.addConstraint(eq_expr);
+    constraints_manager.addConstraint(eq_expr);
   }
   
   /* Now try to bind each initial OV individually */
