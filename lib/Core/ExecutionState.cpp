@@ -97,7 +97,6 @@ ExecutionState::ExecutionState(KFunction *kf)
       coveredNew(false),
       forkDisabled(false) {
   pushFrame(nullptr, kf);
-  pushFrame(0, kf);
 }
 
 ExecutionState::ExecutionState(const std::vector<ref<Expr> > &assumptions)
