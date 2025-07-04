@@ -1971,12 +1971,6 @@ void Executor::executeCall(ExecutionState &state,
   }
 }
 
-void Executor::addState(ExecutionState *current,
-                        ExecutionState *fresh) {
-  processTree->attach(current->ptreeNode, current, fresh);
-  addedStates.push_back(fresh); // need to check if this causes invalid access
-}
-
 void Executor::handleLoopAnalysis(BasicBlock *dst, BasicBlock *src,
                                   ExecutionState &state) {
   bool terminate = false;
@@ -3826,7 +3820,10 @@ void Executor::terminateState(ExecutionState &state) {
   ExecutionState *replacement = 0;
   state.terminateState(&replacement);
   assert(replacement != &state);
-  if (replacement) addState(&state, replacement);
+  if (replacement) {
+    processTree->attach(state.ptreeNode, replacement, &state);
+    addedStates.push_back(replacement);
+  }
 
   std::vector<ExecutionState *>::iterator it =
       std::find(addedStates.begin(), addedStates.end(), &state);

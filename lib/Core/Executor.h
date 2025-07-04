@@ -218,8 +218,6 @@ private:
 
   /// Optimizes expressions
   ExprOptimizer optimizer;
-  void addState(ExecutionState *current,
-                ExecutionState *fresh);
 
   /// Points to the merging searcher of the searcher chain,
   /// `nullptr` if merging is disabled

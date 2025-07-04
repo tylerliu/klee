@@ -1404,8 +1404,9 @@ unsigned countBitsSet(const BitArray *arr, unsigned size) {
 
 ExecutionState *LoopInProcess::makeRestartState() {
   auto newState = new ExecutionState(*restartState);
+  newState->setID();
   LOG_LA("Making restart state " << (void *)newState << " from "
-                                 << (void *)restartState);
+                                 << (void *)restartState.get());
   for (std::map<const MemoryObject *, BitArray *>::iterator
            i = changedBytes.begin(),
            e = changedBytes.end();
