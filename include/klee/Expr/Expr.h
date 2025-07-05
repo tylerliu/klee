@@ -10,9 +10,8 @@
 #ifndef KLEE_EXPR_H
 #define KLEE_EXPR_H
 
-#include "klee/util/Bits.h"
-#include "klee/util/Ref.h"
-
+#include "klee/ADT/Bits.h"
+#include "klee/ADT/Ref.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/DenseSet.h"
@@ -554,9 +553,7 @@ public:
   UpdateList &operator=(const UpdateList &b) = default;
 
   /// size of this update list
-  unsigned getSize() const {
-    return (head.get() != nullptr ? head->getSize() : 0);
-  }
+  unsigned getSize() const { return head ? head->getSize() : 0; }
 
   void extend(const ref<Expr> &index, const ref<Expr> &value);
 

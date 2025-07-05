@@ -9,25 +9,27 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../lib/Core/Memory.h"
+#include "../../lib/Core/Memory.h"
+#include "../../lib/Core/ExecutionState.h"
+#include "klee/ADT/TreeStream.h"
 #include "klee/Config/Version.h"
-#include "klee/ExecutionState.h"
+#include "klee/Core/Interpreter.h"
 #include "klee/Expr/Expr.h"
 #include "klee/Expr/ExprBuilder.h"
 #include "klee/Expr/ExprPPrinter.h"
-#include "klee/Internal/ADT/KTest.h"
-#include "klee/Internal/ADT/TreeStream.h"
-#include "klee/Internal/Support/Debug.h"
-#include "klee/Internal/Support/ErrorHandling.h"
-#include "klee/Internal/Support/FileHandling.h"
-#include "klee/Internal/Support/ModuleUtil.h"
-#include "klee/Internal/Support/PrintVersion.h"
-#include "klee/Internal/System/Time.h"
-#include "klee/Interpreter.h"
-#include "klee/OptionCategories.h"
+#include "klee/ADT/KTest.h"
+#include "klee/ADT/TreeStream.h"
 #include "klee/Solver/Solver.h"
 #include "klee/Solver/SolverCmdLine.h"
-#include "klee/Statistics.h"
+#include "klee/Support/OptionCategories.h"
+#include "klee/Support/Debug.h"
+#include "klee/Support/ErrorHandling.h"
+#include "klee/Support/FileHandling.h"
+#include "klee/Support/ModuleUtil.h"
+#include "klee/Support/PrintVersion.h"
+#include "klee/Statistics/Statistics.h"
+#include "klee/System/Time.h"
+
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(4, 0)
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -237,6 +239,14 @@ namespace {
       cl::init(false), 
       cl::cat(LinkCat));
 
+  cl::opt<std::string> RuntimeBuild(
+      "runtime-build",
+      cl::desc("Link with versions of the runtime library that were built with "
+                "the provided configuration (default=" RUNTIME_CONFIGURATION
+                ")."),
+      cl::init(RUNTIME_CONFIGURATION), 
+      cl::cat(LinkCat));
+
   /*** Checks options ***/
 
   cl::OptionCategory
@@ -339,6 +349,7 @@ namespace {
 
 namespace klee {
 extern cl::opt<std::string> MaxTime;
+class ExecutionState;
 }
 
 class KleeHandler;
@@ -375,7 +386,7 @@ public:
 
 class ConstraintTree {
   /* Index of vector is  */
-  std::vector<std::pair<int, ConstraintManager>> seen_tests;
+  std::vector<std::pair<int, ConstraintSet>> seen_tests;
   /* Key is a pair of test-cases. Value is the depth at which they diverge and
    * the constraint on which they diverge */
   std::map<std::pair<int, int>, int> overlap_depth;
@@ -562,8 +573,8 @@ void KleeHandler::setInterpreter(Interpreter *i) {
 
 std::string KleeHandler::getOutputFilename(const std::string &filename) {
   SmallString<128> path = m_outputDirectory;
-  sys::path::append(path, filename);
-  return path.str();
+  sys::path::append(path,filename);
+  return path.c_str();
 }
 
 std::unique_ptr<llvm::raw_fd_ostream>
@@ -1119,8 +1130,8 @@ void KleeHandler::processCallPath(const ExecutionState &state) {
       break;
   }
   *file << ";;-- Constraints --\n";
-  for (ConstraintManager::const_iterator ci = state.constraints.begin(),
-                                         cEnd = state.constraints.end();
+  for (ConstraintSet::const_iterator ci = state.constraints.begin(),
+                                     cEnd = state.constraints.end();
        ci != cEnd; ++ci) {
     *file << **ci << "\n";
   }
@@ -1219,8 +1230,8 @@ void KleeHandler::dumpCallPath(const ExecutionState &state,
       break;
   }
   *file << ";;-- Constraints --\n";
-  for (ConstraintManager::const_iterator ci = state.constraints.begin(),
-                                         cEnd = state.constraints.end();
+  for (ConstraintSet::const_iterator ci = state.constraints.begin(),
+                                     cEnd = state.constraints.end();
        ci != cEnd; ++ci) {
     *file << **ci << "\n";
   }
@@ -1536,37 +1547,39 @@ std::string KleeHandler::getRunTimeLibraryPath(const char *argv0) {
   if (env)
     return std::string(env);
 
-  // Take any function from the execution binary but not main (as not allowed
-  // by C++ standard)
+  // Take any function from the execution binary but not main (as not allowed by
+  // C++ standard)
   void *MainExecAddr = (void *)(intptr_t)getRunTimeLibraryPath;
   SmallString<128> toolRoot(
-      llvm::sys::fs::getMainExecutable(argv0, MainExecAddr));
+      llvm::sys::fs::getMainExecutable(argv0, MainExecAddr)
+      );
 
   // Strip off executable so we have a directory path
   llvm::sys::path::remove_filename(toolRoot);
 
   SmallString<128> libDir;
 
-  if (strlen(KLEE_INSTALL_BIN_DIR) != 0 &&
-      strlen(KLEE_INSTALL_RUNTIME_DIR) != 0 &&
-      toolRoot.str().endswith(KLEE_INSTALL_BIN_DIR)) {
-    KLEE_DEBUG_WITH_TYPE("klee_runtime",
-                         llvm::dbgs()
-                             << "Using installed KLEE library runtime: ");
-    libDir = toolRoot.str().substr(0, toolRoot.str().size() -
-                                          strlen(KLEE_INSTALL_BIN_DIR));
+  if (strlen( KLEE_INSTALL_BIN_DIR ) != 0 &&
+      strlen( KLEE_INSTALL_RUNTIME_DIR ) != 0 &&
+      toolRoot.str().endswith( KLEE_INSTALL_BIN_DIR ))
+  {
+    KLEE_DEBUG_WITH_TYPE("klee_runtime", llvm::dbgs() <<
+                         "Using installed KLEE library runtime: ");
+    libDir = toolRoot.str().substr(0,
+               toolRoot.str().size() - strlen( KLEE_INSTALL_BIN_DIR ));
     llvm::sys::path::append(libDir, KLEE_INSTALL_RUNTIME_DIR);
-  } else {
-    KLEE_DEBUG_WITH_TYPE("klee_runtime",
-                         llvm::dbgs()
-                             << "Using build directory KLEE library runtime :");
+  }
+  else
+  {
+    KLEE_DEBUG_WITH_TYPE("klee_runtime", llvm::dbgs() <<
+                         "Using build directory KLEE library runtime :");
     libDir = KLEE_DIR;
-    llvm::sys::path::append(libDir, RUNTIME_CONFIGURATION);
-    llvm::sys::path::append(libDir, "lib");
+    llvm::sys::path::append(libDir, "runtime/lib");
   }
 
-  KLEE_DEBUG_WITH_TYPE("klee_runtime", llvm::dbgs() << libDir.c_str() << "\n");
-  return libDir.str();
+  KLEE_DEBUG_WITH_TYPE("klee_runtime", llvm::dbgs() <<
+                       libDir.c_str() << "\n");
+  return libDir.c_str();
 }
 
 void CallTree::addCallPath(std::vector<CallInfo>::const_iterator path_begin,
@@ -1872,14 +1885,14 @@ void CallTree::dumpCallPrefixesSExpr(std::list<CallInfo> accumulated_prefix,
 
 void ConstraintTree::addTest(int id, ExecutionState &state) {
 
-  std::pair<int, ConstraintManager> last_test;
+  std::pair<int, ConstraintSet> last_test;
   if (id) {
     last_test = seen_tests.back();
     assert(id == last_test.first + 1 && "Wrong order of tests to be added");
 
     /* Iterating through constraints of existing test */
-    ConstraintManager constraints(state.constraints);
-    ConstraintManager::const_iterator cit = last_test.second.begin();
+    ConstraintSet constraints(state.constraints);
+    ConstraintSet::const_iterator cit = last_test.second.begin();
     bool result;
     uint depths[2] = {0, 0};
     uint i; /* Needed for assert*/
@@ -1914,8 +1927,9 @@ void ConstraintTree::addTest(int id, ExecutionState &state) {
     assert(i < state.constraints.size() && "Could not find an unsat constraint");
 
     /* Some checks */
-    ConstraintManager branch_constraints;
-    branch_constraints.addConstraint(unsat_constraints[0]);
+    ConstraintSet branch_constraints;
+    ConstraintManager branch_constraints_manager(branch_constraints);
+    branch_constraints_manager.addConstraint(unsat_constraints[0]);
     klee::Query sat_query(branch_constraints, unsat_constraints[1]);
     result = false;
     bool success = solver->mayBeTrue(sat_query, result);
@@ -1927,14 +1941,15 @@ void ConstraintTree::addTest(int id, ExecutionState &state) {
 
     if (depths[0] > depths[1]) {
 
-      ConstraintManager final_constraints;
+      ConstraintSet final_constraints;
+      ConstraintManager final_constraints_manager(final_constraints);
       /* Fixing constraints */
       for (i = 0, cit = last_test.second.begin(); i < depths[0]; i++, cit++)
-        final_constraints.addConstraint(*cit);
+        final_constraints_manager.addConstraint(*cit);
 
       for (i = depths[1], cit = state.constraints.begin() + depths[1];
            i < state.constraints.size(); i++, cit++)
-        final_constraints.addConstraint(*cit);
+        final_constraints_manager.addConstraint(*cit);
 
       state.constraints = final_constraints;
     }
@@ -1962,8 +1977,8 @@ void ConstraintTree::buildTree() {
       std::pair<int, int> test_pair = std::minmax(it1.first, it.first);
 
       /* Iterating through constraints of existing test */
-      ConstraintManager constraints = it1.second;
-      ConstraintManager::const_iterator cit = it.second.begin();
+      ConstraintSet constraints = it1.second;
+      ConstraintSet::const_iterator cit = it.second.begin();
       bool result;
       uint i; /* Needed for assert*/
       for (i = 0; i < it.second.size(); i++, cit++) {
@@ -1997,8 +2012,9 @@ void ConstraintTree::buildTree() {
       }
       assert(first_iter_depth == i &&
              "Tree generation algorithm will fail due to mismatched prefixes");
-      ConstraintManager branch_constraints;
-      branch_constraints.addConstraint(branch1);
+      ConstraintSet branch_constraints;
+      ConstraintManager branch_constraints_manager(branch_constraints);
+      branch_constraints_manager.addConstraint(branch1);
       klee::Query sat_query(branch_constraints, *cit);
       result = false;
       bool success = solver->mayBeTrue(sat_query, result);
@@ -2138,7 +2154,9 @@ static const char *modelledExternals[] = {
     "klee_alias_function",
     "klee_alias_function_regex",
     "klee_alias_undo",
-    "klee_stack_trace",
+    "klee_stack_trace",  
+    "_klee_eh_Unwind_RaiseException_impl",
+    "klee_eh_typeid_for",
 
     /* tracing functions */
     "klee_trace_extra_val_u32",
@@ -2304,8 +2322,13 @@ void externalsAndGlobalsCheck(const llvm::Module *m) {
       for (BasicBlock::const_iterator it = bbIt->begin(), ie = bbIt->end();
            it != ie; ++it) {
         if (const CallInst *ci = dyn_cast<CallInst>(it)) {
+#if LLVM_VERSION_CODE >= LLVM_VERSION(8, 0)
+          if (isa<InlineAsm>(ci->getCalledOperand())) {
+#else
           if (isa<InlineAsm>(ci->getCalledValue())) {
-            klee_warning_once(&*fnIt, "function \"%s\" has inline asm",
+#endif
+            klee_warning_once(&*fnIt,
+                              "function \"%s\" has inline asm",
                               fnIt->getName().data());
           }
         }
@@ -2322,8 +2345,9 @@ void externalsAndGlobalsCheck(const llvm::Module *m) {
   // initialization)
   for (Module::const_alias_iterator it = m->alias_begin(), ie = m->alias_end();
        it != ie; ++it) {
-    std::map<std::string, bool>::iterator it2 = externals.find(it->getName());
-    if (it2 != externals.end())
+    std::map<std::string, bool>::iterator it2 =
+        externals.find(it->getName().str());
+    if (it2!=externals.end())
       externals.erase(it2);
   }
 
@@ -2332,12 +2356,16 @@ void externalsAndGlobalsCheck(const llvm::Module *m) {
                                              ie = externals.end();
        it != ie; ++it) {
     const std::string &ext = it->first;
-    if (!modelled.count(ext) && (WarnAllExternals || !dontCare.count(ext))) {
-      if (unsafe.count(ext)) {
-        foundUnsafe.insert(*it);
-      } else {
-        klee_warning("undefined reference to %s: %s",
-                     it->second ? "variable" : "function", ext.c_str());
+    if (!modelled.count(ext) && (WarnAllExternals ||
+                                 !dontCare.count(ext))) {
+      if (ext.compare(0, 5, "llvm.") != 0) { // not an LLVM reserved name
+        if (unsafe.count(ext)) {
+          foundUnsafe.insert(*it);
+        } else {
+          klee_warning("undefined reference to %s: %s",
+                       it->second ? "variable" : "function",
+                       ext.c_str());
+        }
       }
     }
   }
@@ -2394,7 +2422,7 @@ static void halt_via_gdb(int pid) {
 
 #ifndef SUPPORT_KLEE_UCLIBC
 static void
-linkWithUclibc(StringRef libDir,
+linkWithUclibc(StringRef libDir, std::string opt_suffix,
                std::vector<std::unique_ptr<llvm::Module>> &modules) {
   klee_error("invalid libc, no uclibc support!\n");
 }
@@ -2484,7 +2512,7 @@ createLibCWrapper(std::vector<std::unique_ptr<llvm::Module>> &modules,
 }
 
 static void
-linkWithUclibc(StringRef libDir,
+linkWithUclibc(StringRef libDir, std::string opt_suffix,
                std::vector<std::unique_ptr<llvm::Module>> &modules) {
   LLVMContext &ctx = modules[0]->getContext();
 
@@ -2505,6 +2533,14 @@ linkWithUclibc(StringRef libDir,
 
   createLibCWrapper(modules, EntryPoint, "__uClibc_main");
   klee_message("NOTE: Using klee-uclibc : %s", uclibcBCA.c_str());
+
+  // Link the fortified library
+  SmallString<128> FortifyPath(libDir);
+  llvm::sys::path::append(FortifyPath,
+                          "libkleeRuntimeFortify" + opt_suffix + ".bca");
+  if (!klee::loadFile(FortifyPath.c_str(), ctx, modules, errorMsg))
+    klee_error("error loading the fortify library '%s': %s",
+               FortifyPath.c_str(), errorMsg.c_str());
 }
 #endif
 
@@ -2612,18 +2648,30 @@ int main(int argc, char **argv, char **envp) {
   }
 
   llvm::Module *mainModule = M.get();
+
+  // Detect architecture
+  std::string opt_suffix = "64"; // Fall back to 64bit
+  if (mainModule->getTargetTriple().find("i686") != std::string::npos ||
+      mainModule->getTargetTriple().find("i586") != std::string::npos ||
+      mainModule->getTargetTriple().find("i486") != std::string::npos ||
+      mainModule->getTargetTriple().find("i386") != std::string::npos)
+    opt_suffix = "32";
+
+  // Add additional user-selected suffix
+  opt_suffix += "_" + RuntimeBuild.getValue();
+
   // Push the module as the first entry
   loadedModules.emplace_back(std::move(M));
 
   std::string LibraryDir = KleeHandler::getRunTimeLibraryPath(argv[0]);
-  Interpreter::ModuleOptions Opts(LibraryDir.c_str(), EntryPoint,
+  Interpreter::ModuleOptions Opts(LibraryDir.c_str(), EntryPoint, opt_suffix,
                                   /*Optimize=*/OptimizeModule,
                                   /*CheckDivZero=*/CheckDivZero,
                                   /*CheckOvershift=*/CheckOvershift);
 
   if (WithPOSIXRuntime) {
     SmallString<128> Path(Opts.LibraryDir);
-    llvm::sys::path::append(Path, "libkleeRuntimePOSIX.bca");
+    llvm::sys::path::append(Path, "libkleeRuntimePOSIX" + opt_suffix + ".bca");
     klee_message("NOTE: Using POSIX model: %s", Path.c_str());
     if (!klee::loadFile(Path.c_str(), mainModule->getContext(), loadedModules,
                         errorMsg))
@@ -2636,15 +2684,23 @@ int main(int argc, char **argv, char **envp) {
 
   if (Libcxx) {
 #ifndef SUPPORT_KLEE_LIBCXX
-    klee_error("Klee was not compiled with libcxx support");
+    klee_error("KLEE was not compiled with Libcxx support");
 #else
     SmallString<128> LibcxxBC(Opts.LibraryDir);
     llvm::sys::path::append(LibcxxBC, KLEE_LIBCXX_BC_NAME);
-    if (!klee::loadFile(LibcxxBC.c_str(), mainModule->getContext(),
-                        loadedModules, errorMsg))
-      klee_error("error loading free standing support '%s': %s",
-                 LibcxxBC.c_str(), errorMsg.c_str());
+    if (!klee::loadFile(LibcxxBC.c_str(), mainModule->getContext(), loadedModules,
+                        errorMsg))
+      klee_error("error loading libcxx '%s': %s", LibcxxBC.c_str(),
+                 errorMsg.c_str());
     klee_message("NOTE: Using libcxx : %s", LibcxxBC.c_str());
+#ifdef SUPPORT_KLEE_EH_CXX
+    SmallString<128> EhCxxPath(Opts.LibraryDir);
+    llvm::sys::path::append(EhCxxPath, "libkleeeh-cxx" + opt_suffix + ".bca");
+    if (!klee::loadFile(EhCxxPath.c_str(), mainModule->getContext(),
+                        loadedModules, errorMsg))
+      klee_error("error loading libklee-eh-cxx '%s': %s", EhCxxPath.c_str(),
+                 errorMsg.c_str());
+#endif
 #endif
   }
 
@@ -2652,7 +2708,8 @@ int main(int argc, char **argv, char **envp) {
   case LibcType::KleeLibc: {
     // FIXME: Find a reasonable solution for this.
     SmallString<128> Path(Opts.LibraryDir);
-    llvm::sys::path::append(Path, "libklee-libc.bca");
+    llvm::sys::path::append(Path,
+                            "libkleeRuntimeKLEELibc" + opt_suffix + ".bca");
     if (!klee::loadFile(Path.c_str(), mainModule->getContext(), loadedModules,
                         errorMsg))
       klee_error("error loading klee libc '%s': %s", Path.c_str(),
@@ -2661,15 +2718,16 @@ int main(int argc, char **argv, char **envp) {
   /* Falls through. */
   case LibcType::FreeStandingLibc: {
     SmallString<128> Path(Opts.LibraryDir);
-    llvm::sys::path::append(Path, "libkleeRuntimeFreeStanding.bca");
+    llvm::sys::path::append(Path,
+                            "libkleeRuntimeFreestanding" + opt_suffix + ".bca");
     if (!klee::loadFile(Path.c_str(), mainModule->getContext(), loadedModules,
                         errorMsg))
-      klee_error("error loading free standing support '%s': %s", Path.c_str(),
+      klee_error("error loading freestanding support '%s': %s", Path.c_str(),
                  errorMsg.c_str());
     break;
   }
   case LibcType::UcLibc:
-    linkWithUclibc(LibraryDir, loadedModules);
+    linkWithUclibc(LibraryDir, opt_suffix, loadedModules);
     break;
   }
 
@@ -2904,7 +2962,7 @@ int main(int argc, char **argv, char **envp) {
   uint64_t queryCounterexamples =
       *theStatisticManager->getStatisticByName("QueriesCEX");
   uint64_t queryConstructs =
-      *theStatisticManager->getStatisticByName("QueriesConstructs");
+      *theStatisticManager->getStatisticByName("QueryConstructs");
   uint64_t instructions =
       *theStatisticManager->getStatisticByName("Instructions");
   uint64_t forks = *theStatisticManager->getStatisticByName("Forks");

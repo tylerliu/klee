@@ -9,16 +9,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "klee/Expr/ExprBuilder.h"
 #include "klee/perf-contracts.h"
+#include "klee/Expr/Parser/Parser.h"
+#include "klee/Expr/Constraints.h"
+#include "klee/Expr/ExprBuilder.h"
+#include "klee/Solver/Solver.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <dlfcn.h>
-#include <klee/Expr/Parser/Parser.h>
 #include <fstream>
 #include <iostream>
-#include <klee/Expr/Constraints.h>
-#include <klee/Solver/Solver.h>
 #include <vector>
 
 #define DEBUG
@@ -40,7 +40,7 @@ typedef struct {
 } call_t;
 
 typedef struct {
-  klee::ConstraintManager constraints;
+  klee::ConstraintSet constraints;
   std::vector<call_t> calls;
   std::map<std::string, const klee::Array *> arrays;
   std::map<std::string, klee::ref<klee::Expr>> initial_extra_vars;
@@ -89,11 +89,11 @@ call_path_t *load_call_path(std::string file_name) {
         while (klee::expr::Decl *D = P->ParseTopLevelDecl()) {
           assert(!P->GetNumErrors() &&
                  "Error parsing kquery in call path file.");
-          if (klee::expr::ArrayDecl *AD = dyn_cast<klee::expr::ArrayDecl>(D)) {
+          if (klee::expr::ArrayDecl *AD = llvm::dyn_cast<klee::expr::ArrayDecl>(D)) {
             call_path->arrays[AD->Root->name] = AD->Root;
           } else if (klee::expr::QueryCommand *QC =
-                         dyn_cast<klee::expr::QueryCommand>(D)) {
-            call_path->constraints = klee::ConstraintManager(QC->Constraints);
+                         llvm::dyn_cast<klee::expr::QueryCommand>(D)) {
+            call_path->constraints = klee::ConstraintSet(QC->Constraints);
             exprs = QC->Values;
             break;
           }
@@ -205,13 +205,14 @@ int main(int argc, char **argv, char **envp) {
 
   klee::ExprBuilder *exprBuilder = klee::createDefaultExprBuilder();
 
-  klee::ConstraintManager constraints;
+  klee::ConstraintSet constraints;
+  klee::ConstraintManager constraints_manager(constraints);
 
   for (auto c : sender_call_path->constraints) {
-    constraints.addConstraint(c);
+    constraints_manager.addConstraint(c);
   }
   for (auto c : receiver_call_path->constraints) {
-    constraints.addConstraint(c);
+    constraints_manager.addConstraint(c);
   }
 
   klee::ref<klee::Expr> tx_expr;

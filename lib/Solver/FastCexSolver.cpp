@@ -16,8 +16,8 @@
 #include "klee/Expr/ExprRangeEvaluator.h"
 #include "klee/Expr/ExprVisitor.h"
 #include "klee/Solver/IncompleteSolver.h"
-#include "klee/Internal/Support/Debug.h"
-#include "klee/Internal/Support/IntEvaluation.h" // FIXME: Use APInt
+#include "klee/Support/Debug.h"
+#include "klee/Support/IntEvaluation.h" // FIXME: Use APInt
 
 #include "llvm/Support/raw_ostream.h"
 
@@ -1007,10 +1007,9 @@ FastCexSolver::~FastCexSolver() { }
 /// \return - True if the propogation was able to prove validity or invalidity.
 static bool propogateValues(const Query& query, CexData &cd, 
                             bool checkExpr, bool &isValid) {
-  for (ConstraintManager::const_iterator it = query.constraints.begin(), 
-         ie = query.constraints.end(); it != ie; ++it) {
-    cd.propogatePossibleValue(*it, 1);
-    cd.propogateExactValue(*it, 1);
+  for (const auto &constraint : query.constraints) {
+    cd.propogatePossibleValue(constraint, 1);
+    cd.propogateExactValue(constraint, 1);
   }
   if (checkExpr) {
     cd.propogatePossibleValue(query.expr, 0);
@@ -1032,14 +1031,13 @@ static bool propogateValues(const Query& query, CexData &cd,
     }
   }
 
-  for (ConstraintManager::const_iterator it = query.constraints.begin(), 
-         ie = query.constraints.end(); it != ie; ++it) {
-    if (hasSatisfyingAssignment && !cd.evaluatePossible(*it)->isTrue())
+  for (const auto &constraint : query.constraints) {
+    if (hasSatisfyingAssignment && !cd.evaluatePossible(constraint)->isTrue())
       hasSatisfyingAssignment = false;
 
     // If this constraint is known to be false, then we can prove anything, so
     // the query is valid.
-    if (cd.evaluateExact(*it)->isFalse()) {
+    if (cd.evaluateExact(constraint)->isFalse()) {
       isValid = true;
       return true;
     }

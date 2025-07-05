@@ -15,18 +15,20 @@
 #ifndef KLEE_EXECUTOR_H
 #define KLEE_EXECUTOR_H
 
-#include "klee/ExecutionState.h"
+#include "ExecutionState.h"
+#include "UserSearcher.h"
+
+#include "klee/ADT/RNG.h"
+#include "klee/Core/Interpreter.h"
 #include "klee/Expr/ArrayCache.h"
-#include "klee/Internal/Module/Cell.h"
-#include "klee/Internal/Module/KInstruction.h"
-#include "klee/Internal/Module/KModule.h"
-#include "klee/Internal/System/Time.h"
-#include "klee/Interpreter.h"
+#include "klee/Expr/ArrayExprOptimizer.h"
+#include "klee/Module/Cell.h"
+#include "klee/Module/KInstruction.h"
+#include "klee/Module/KModule.h"
+#include "klee/System/Time.h"
 
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
-
-#include "../Expr/ArrayExprOptimizer.h"
 
 #include <map>
 #include <memory>
@@ -40,6 +42,7 @@ namespace llvm {
   class BasicBlock;
   class BranchInst;
   class CallInst;
+  class LandingPadInst;
   class Constant;
   class ConstantExpr;
   class Function;
@@ -84,12 +87,12 @@ namespace klee {
   /// removedStates, and haltExecution, among others.
 
 class Executor : public Interpreter {
-  friend class RandomPathSearcher;
   friend class OwningSearcher;
   friend class WeightedRandomSearcher;
   friend class SpecialFunctionHandler;
   friend class StatsTracker;
   friend class MergeHandler;
+  friend klee::Searcher *klee::constructUserSearcher(Executor &executor);
 
 public:
   typedef std::pair<ExecutionState*,ExecutionState*> StatePair;
@@ -108,8 +111,13 @@ public:
     ReportError,
     User,
     Inaccessible,
+    UncaughtException,
+    UnexpectedException,
     Unhandled,
   };
+
+  /// The random number generator.
+  RNG theRNG;
 
 private:
   static const char *TerminateReasonNames[];
@@ -121,7 +129,7 @@ private:
   ExternalDispatcher *externalDispatcher;
   TimingSolver *solver;
   MemoryManager *memory;
-  std::set<ExecutionState*> states;
+  std::set<ExecutionState*, ExecutionStateIDCompare> states;
   StatsTracker *statsTracker;
   TreeStreamWriter *pathWriter, *symPathWriter;
   SpecialFunctionHandler *specialFunctionHandler;
@@ -210,12 +218,16 @@ private:
 
   /// Optimizes expressions
   ExprOptimizer optimizer;
-  void addState(ExecutionState *current,
-                ExecutionState *fresh);
 
   /// Points to the merging searcher of the searcher chain,
   /// `nullptr` if merging is disabled
   MergingSearcher *mergingSearcher = nullptr;
+
+  /// Typeids used during exception handling
+  std::vector<ref<Expr>> eh_typeids;
+
+  /// Return the typeid corresponding to a certain `type_info`
+  ref<ConstantExpr> getEhTypeidFor(ref<Expr> type_info);
 
   llvm::Function* getTargetFunction(llvm::Value *calledVal,
                                     ExecutionState &state);
@@ -229,10 +241,14 @@ private:
   MemoryObject *addExternalObject(ExecutionState &state, void *addr, 
                                   unsigned size, bool isReadOnly);
 
+  void initializeGlobalAlias(const llvm::Constant *c);
   void initializeGlobalObject(ExecutionState &state, ObjectState *os, 
                               const llvm::Constant *c,
                               unsigned offset);
   void initializeGlobals(ExecutionState &state);
+  void allocateGlobalObjects(ExecutionState &state);
+  void initializeGlobalAliases();
+  void initializeGlobalObjects(ExecutionState &state);
 
   void stepInstruction(ExecutionState &state);
   void updateStates(ExecutionState *current);
@@ -301,7 +317,17 @@ private:
   void executeFree(ExecutionState &state,
                    ref<Expr> address,
                    KInstruction *target = 0);
-  
+
+  /// Serialize a landingpad instruction so it can be handled by the
+  /// libcxxabi-runtime
+  MemoryObject *serializeLandingpad(ExecutionState &state,
+                                    const llvm::LandingPadInst &lpi,
+                                    bool &stateTerminated);
+
+  /// Unwind the given state until it hits a landingpad. This is used
+  /// for exception handling.
+  void unwindToNextLandingpad(ExecutionState &state);
+
   void executeCall(ExecutionState &state, 
                    KInstruction *ki,
                    llvm::Function *f,
@@ -430,6 +456,11 @@ private:
   /// bindModuleConstants - Initialize the module constant table.
   void bindModuleConstants();
 
+  template <typename SqType, typename TypeIt>
+  void computeOffsetsSeqTy(KGEPInstruction *kgepi,
+                           ref<ConstantExpr> &constantOffset, uint64_t index,
+                           const TypeIt it);
+
   template <typename TypeIt>
   void computeOffsets(KGEPInstruction *kgepi, TypeIt ib, TypeIt ie);
 
@@ -441,7 +472,13 @@ private:
                                     ref<Expr> e,
                                     ref<ConstantExpr> value);
 
-  void checkMemoryUsage();
+  /// check memory usage and terminate states when over threshold of -max-memory + 100MB
+  /// \return true if below threshold, false otherwise (states were terminated)
+  bool checkMemoryUsage();
+
+  /// check if branching/forking is allowed
+  bool branchingPermitted(const ExecutionState &state) const;
+
   void printDebugInstructions(ExecutionState &state);
   void doDumpStates();
 

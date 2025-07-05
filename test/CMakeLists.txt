@@ -18,6 +18,16 @@ set(NATIVE_CC "${CMAKE_C_COMPILER} ${CMAKE_C_FLAGS} -I ${CMAKE_SOURCE_DIR}/inclu
 set(NATIVE_CXX "${CMAKE_CXX_COMPILER} ${CMAKE_CXX_FLAGS} -I ${CMAKE_SOURCE_DIR}/include")
 set(TARGET_TRIPLE "${TARGET_TRIPLE}")
 
+# Extend native compiler invocation on macOS to point to the currently selected systems directory
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  execute_process(
+          COMMAND xcrun --sdk macosx --show-sdk-path
+          OUTPUT_VARIABLE MAC_OS_SDK_PATH
+          OUTPUT_STRIP_TRAILING_WHITESPACE)
+  set(NATIVE_CC "${NATIVE_CC} -isysroot ${MAC_OS_SDK_PATH}")
+  set(NATIVE_CXX "${NATIVE_CXX} -isysroot ${MAC_OS_SDK_PATH}")
+endif()
+
 # FIXME: Do this to avoid changing the template file that
 # is shared by both build systems.
 if (ENABLE_POSIX_RUNTIME)
@@ -146,7 +156,7 @@ add_custom_target(systemtests
   COMMAND "${LIT_TOOL}" ${LIT_ARGS} "${CMAKE_CURRENT_BINARY_DIR}"
   DEPENDS klee kleaver klee-replay kleeRuntest gen-bout gen-random-bout
   COMMENT "Running system tests"
-  ${ADD_CUSTOM_COMMAND_USES_TERMINAL_ARG}
+  USES_TERMINAL
 )
 
 # Tell CMake to remove lit's output directories when
