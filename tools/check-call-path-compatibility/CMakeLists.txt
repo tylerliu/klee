@@ -15,6 +15,11 @@ set(KLEE_LIBS
   kleeCore
 )
 
-target_link_libraries(check-call-path-compatibility ${KLEE_LIBS})
+set(LLVM_COMPONENTS
+  support
+)
+klee_get_llvm_libs(LLVM_LIBS ${LLVM_COMPONENTS})
+
+target_link_libraries(check-call-path-compatibility ${KLEE_LIBS} ${LLVM_LIBS})
 
 install(TARGETS check-call-path-compatibility RUNTIME DESTINATION bin)

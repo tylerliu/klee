@@ -1,10 +1,10 @@
-FROM klee/llvm:90_O_D_A_ubuntu_bionic-20200807 as llvm_base
-FROM klee/gtest:1.7.0_ubuntu_bionic-20200807 as gtest_base
-FROM klee/uclibc:klee_uclibc_v1.2_90_ubuntu_bionic-20200807 as uclibc_base
-FROM klee/tcmalloc:2.7_ubuntu_bionic-20200807 as tcmalloc_base
-FROM klee/stp:2.3.3_ubuntu_bionic-20200807 as stp_base
-FROM klee/z3:4.8.4_ubuntu_bionic-20200807 as z3_base
-FROM klee/libcxx:90_ubuntu_bionic-20200807 as libcxx_base
+FROM klee/llvm:90_O_D_A_ubuntu_bionic-20200807 AS llvm_base
+FROM klee/gtest:1.7.0_ubuntu_bionic-20200807 AS gtest_base
+FROM klee/uclibc:klee_uclibc_v1.2_90_ubuntu_bionic-20200807 AS uclibc_base
+FROM klee/tcmalloc:2.7_ubuntu_bionic-20200807 AS tcmalloc_base
+FROM klee/stp:2.3.3_ubuntu_bionic-20200807 AS stp_base
+FROM klee/z3:4.8.4_ubuntu_bionic-20200807 AS z3_base
+FROM klee/libcxx:90_ubuntu_bionic-20200807 AS libcxx_base
 FROM llvm_base as intermediate
 COPY --from=gtest_base /tmp /tmp/
 COPY --from=uclibc_base /tmp /tmp/
@@ -59,7 +59,7 @@ RUN /bin/bash -c 'ln -s ${BASE}/klee_src/include/klee /usr/include/'
 
 USER klee
 WORKDIR /home/klee
-ENV LD_LIBRARY_PATH /home/klee/klee_build/lib/
+ENV LD_LIBRARY_PATH=/home/klee/klee_build/lib/
 
 # Add KLEE binary directory to PATH
 RUN /bin/bash -c 'ln -s ${BASE}/klee_src /home/klee/ && ln -s ${BASE}/klee_build* /home/klee/klee_build' 

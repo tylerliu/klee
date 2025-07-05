@@ -8,7 +8,7 @@ setup_build_variables_stp() {
   MINISAT_BUILD_PATH="${BASE}/minisat-build${STP_SUFFIX}"
   MINISAT_INSTALL_PATH="${BASE}/minisat-install${STP_SUFFIX}"
 
-  if version_gt "${STP_VERSION}" "2.3.4"; then
+  if version_gt "${STP_VERSION}" "2.3.3"; then
      ABC_INSTALL_PATH="${BASE}/stp-${STP_VERSION}-build${STP_SUFFIX}/lib/extlib-abc/build/"
   fi
 
@@ -26,7 +26,7 @@ download_stp() {
   # Download STP
   git_clone_or_update "${stp_url}" "${BASE}/stp-${STP_VERSION}" "${STP_VERSION}"
 
-  if version_gt "${STP_VERSION}" "2.3.4"; then
+  if version_gt "${STP_VERSION}" "2.3.3"; then
      cd "${BASE}/stp-${STP_VERSION}" || return 1
      git submodule init
      git submodule update
@@ -109,7 +109,7 @@ get_build_artifacts_stp() {
     setup_build_variables_stp
     echo "${MINISAT_INSTALL_PATH}"
     echo "${STP_INSTALL_PATH}"
-    if version_gt "${STP_VERSION}" "2.3.4"; then
+    if version_gt "${STP_VERSION}" "2.3.3"; then
        echo "${ABC_INSTALL_PATH}"
     fi
   )
