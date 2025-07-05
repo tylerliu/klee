@@ -53,7 +53,7 @@ jobs:
                 "metaSMT Boolector",
                 "STP master",
                 "Latest klee-uclibc",
-                "Asserts enabled",
+                "Asserts disabled",
                 "No TCMalloc, optimised runtime",
             ]
         include:
