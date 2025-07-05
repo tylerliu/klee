@@ -233,7 +233,7 @@ build_docker() {
     if [[ "${hasBaseImage}" -eq 0 ]]; then
       hasBaseImage=1
       # Use base image as building base
-      echo "FROM ${BASE_IMAGE} as intermediate"
+      echo "FROM ${BASE_IMAGE} AS intermediate"
     fi
 
     # Retrieve list of required variables and make them available in Docker
