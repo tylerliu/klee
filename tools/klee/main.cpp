@@ -1886,7 +1886,13 @@ void CallTree::dumpCallPrefixesSExpr(std::list<CallInfo> accumulated_prefix,
 void ConstraintTree::addTest(int id, ExecutionState &state) {
 
   std::pair<int, ConstraintSet> last_test;
-  if (id) {
+  if (id > 1) {
+    // Only perform comparison logic for tests after the first one (id > 1)
+    // The first test (id = 1) should be added without comparison
+    // Check if seen_tests is empty before calling .back()
+    if (seen_tests.empty()) {
+      klee_error("Trying to add test with id %d but no previous tests exist", id);
+    }
     last_test = seen_tests.back();
     assert(id == last_test.first + 1 && "Wrong order of tests to be added");
 
@@ -1960,6 +1966,8 @@ void ConstraintTree::addTest(int id, ExecutionState &state) {
     branch[test_pair].push_back(unsat_constraints[0]);
     branch[test_pair].push_back(unsat_constraints[1]);
   }
+  
+  // Always add the test to seen_tests, regardless of whether comparison logic was performed
   std::cout << "Added test number: " << id <<"\n";
   seen_tests.push_back(std::make_pair(id, state.constraints));
   overlap_depth.insert({std::minmax(id,id), state.constraints.size()+1});
