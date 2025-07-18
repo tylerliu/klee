@@ -78,7 +78,7 @@ UINT8 (*get_num_devs)() = NULL;
 
 VOID log_read_op(VOID *ip, UINT8 *addr, UINT32 size, THREADID tid,
                  CONTEXT *ctxt) {
-#if 0
+#if DEBUG
 printf("intercepting read %p [%u]\n", addr, size);
 fflush(stdout);
 #endif
@@ -114,7 +114,7 @@ fflush(stdout);
 
 VOID intercept_write_op(VOID *ip, UINT8 *addr, UINT32 size, THREADID tid,
                         CONTEXT *ctxt) {
-#if 0
+#if DEBUG
     printf("intercepting write %p [%u]\n", addr, size);
     fflush(stdout);
 #endif
@@ -293,7 +293,11 @@ VOID trace_before(CHAR *name, ADDRINT size) {
   regs[LEVEL_BASE::REG_FullRegName(LEVEL_BASE::REG_R15)] = "r15";
 }
 
-VOID trace_after(ADDRINT ret) { is_logging = false; }
+VOID trace_after(ADDRINT ret) {
+  is_logging = false;
+  printf("Done logging. \n");
+  fflush(stdout);
+}
 
 VOID Image(IMG img, VOID *v) {
 
@@ -304,8 +308,8 @@ VOID Image(IMG img, VOID *v) {
                    IARG_ADDRINT, start_fn.c_str(),
                    IARG_FUNCARG_ENTRYPOINT_VALUE, 0, IARG_END);
     RTN_Close(processRtn);
-  } else {
   }
+  
   processRtn = RTN_FindByName(img, end_fn.c_str());
   if (RTN_Valid(processRtn)) {
     RTN_Open(processRtn);

@@ -6,6 +6,7 @@ TRACES_DIR=${1:-klee-last}
 shift || true
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PERF_CONTRACTS_PATH=$SCRIPT_DIR/../../pix/dpdk-nfs/perf-contracts/perf-contracts.so
 
 function stitch_traces {
   if [ "${1}" ]; then
@@ -21,15 +22,15 @@ function stitch_traces {
     touch $TRACES_DIR/stateful-error-log   
     rm $TRACES_DIR/stateful-error-log
     parallel --joblog joblog.txt -j$(nproc) --halt-on-error 0 "set -euo pipefail; $SCRIPT_DIR/../build/bin/stitch-perf-contract \
-                  -contract $SCRIPT_DIR/../../bolt/perf-contracts/perf-contracts.so \
+                  -contract $PERF_CONTRACTS_PATH \
                   --user-vars \"$USER_VAR_STR\" \
-                  {} 2>> $TRACES_DIR/stateful-error-log \
+                  {} 2>> $TRACES_DIR/stateful-error-log-\$(basename {} .call_path) \
                 | awk \"{ print \\\"\$(basename {} .call_path),\\\" \\\$0; }\"" \
                 ::: $TRACES_DIR/*.call_path > $TRACES_DIR/stateful-analysis-log.txt
   else
     parallel --joblog joblog.txt -j$(nproc) --halt-on-error 0 "set -euo pipefail; $SCRIPT_DIR/../build/bin/stitch-perf-contract \
-                  -contract $SCRIPT_DIR/../../bolt/perf-contracts/perf-contracts.so \
-                  {} 2>> $TRACES_DIR/stateful-error-log \
+                  -contract $PERF_CONTRACTS_PATH \
+                  {} 2>> $TRACES_DIR/stateful-error-log-$(basename {} .call_path) \
                 | awk \"{ print \\\"\$(basename {} .call_path),\\\" \\\$0; }\"" \
                 ::: $TRACES_DIR/*.call_path > $TRACES_DIR/stateful-analysis-log.txt
   fi

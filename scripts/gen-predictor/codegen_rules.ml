@@ -62,9 +62,9 @@ let gen_predictor branches debug =
   render_if_tree (rewrite_if_tree (gen_if_tree branches [])) "" debug
 
 let convert_constraints_to_predictor in_fname out_fname debug =
-  match Sys.file_exists in_fname with
-  | `No | `Unknown -> failwith ("Source constraints faile " ^ out_fname ^ "does not exist")
-  | `Yes -> begin
+  if not (Stdlib.Sys.file_exists in_fname) then
+    failwith ("Source constraints file " ^ out_fname ^ " does not exist")
+  else begin
       print_endline ("generating predictor code in " ^
                      out_fname ^ " based on constraints in " ^
                      in_fname);

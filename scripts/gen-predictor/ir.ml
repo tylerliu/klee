@@ -1,4 +1,3 @@
-open Sexplib.Conv
 open Core
 
 module Sexp = Core.Sexp
@@ -125,8 +124,8 @@ let rec render_tterm (t:tterm) =
     "{" ^ (String.concat ~sep:", "
              (List.map cells ~f:render_tterm)) ^
     "}"
-  | Int 0 -> if (t.t = Boolean) then "false" else ("0"^ (int_type_postfix t.t))
-  | Int 1 -> if (t.t = Boolean) then "true" else ("1"^ (int_type_postfix t.t))
+  | Int 0 -> (match t.t with Boolean -> "false" | _ -> "0"^ (int_type_postfix t.t))
+  | Int 1 -> (match t.t with Boolean -> "true" | _ -> "1"^ (int_type_postfix t.t))
   | Int i -> string_of_int i ^ (int_type_postfix t.t)
   | Bool b -> string_of_bool b
   | Not {v=Bop (Eq, lhs, rhs);t=_} -> "(" ^ (render_tterm lhs) ^
@@ -168,7 +167,7 @@ let rec term_eq a b =
     ((term_eq lhsa.v lhsb.v) && (term_eq rhsa.v rhsb.v)) ||
     ((term_eq lhsa.v rhsb.v) && (term_eq rhsa.v lhsb.v))
   | Bop (opa,lhsa,rhsa), Bop (opb,lhsb,rhsb) ->
-    opa = opb && (term_eq lhsa.v lhsb.v) && (term_eq rhsa.v rhsb.v)
+    Poly.equal opa opb && (term_eq lhsa.v lhsb.v) && (term_eq rhsa.v rhsb.v)
   | Apply (fa,argsa), Apply (fb, argsb) ->
     (String.equal fa fb) && ((List.length argsa) = (List.length argsb)) &&
     (List.for_all2_exn argsa argsb ~f:(fun arga argb -> term_eq arga.v argb.v))
@@ -180,7 +179,7 @@ let rec term_eq a b =
          (String.equal fnamea fnameb) &&
          term_eq fvala.v fvalb.v))
   | Int ia, Int ib -> ia = ib
-  | Bool ba, Bool bb -> ba = bb
+  | Bool ba, Bool bb -> Poly.equal ba bb
   | Not tta, Not ttb -> term_eq tta.v ttb.v
   | Str_idx (tta,fda), Str_idx (ttb,fdb) ->
     term_eq tta.v ttb.v && String.equal fda fdb
@@ -188,7 +187,7 @@ let rec term_eq a b =
   | Fptr fa, Fptr fb -> String.equal fa fb
   | Addr tta, Addr ttb -> term_eq tta.v ttb.v
   | Cast (ctypea,terma), Cast (ctypeb,termb) ->
-    (ctypea = ctypeb) && (term_eq terma.v termb.v)
+    Poly.equal ctypea ctypeb && (term_eq terma.v termb.v)
   | Undef, Undef -> true
   | Utility ua, Utility ub -> term_utility_eq ua ub
   | Array cells_a, Array cells_b ->
@@ -197,8 +196,8 @@ let rec term_eq a b =
   | _, _ -> false
 and term_utility_eq a b =
   match a, b with
-  | Ptr_placeholder x, Ptr_placeholder y -> (x = y)
-  | Slice (s1, o1, w1), Slice (s2, o2, w2) -> (o1 = o2) && (w1 = w2) &&
+  | Ptr_placeholder x, Ptr_placeholder y -> Poly.equal x y
+  | Slice (s1, o1, w1), Slice (s2, o2, w2) -> (Poly.equal o1 o2) && (Poly.equal w1 w2) &&
                                               (term_eq s1.v s2.v)
   | _, _ -> false
 
@@ -247,7 +246,7 @@ let rec simplify_tterm tterm =
         | Bop (Add, {v=Int x;t=xt}, rhs) when x < 0 ->
           Some (Bop (Sub, rhs, {v=Int (-x);t=xt}))
         | Deref {t=_;v=Addr x} -> Some x.v
-        | Cast (t1, ({v=Cast(t2, _);t=_} as sub)) when t1 = t2 ->
+        | Cast (t1, ({v=Cast(t2, _);t=_} as sub)) when Poly.equal t1 t2 ->
           Some (simplify_tterm sub).v (*FIXME: unnecessary*)
         | Str_idx ({v=Struct (_,fields);
                     t=_},
@@ -274,7 +273,7 @@ let rec simplify_tterm tterm =
     ) tterm
 
 let rec replace_tterm old_tt new_tt tterm =
-  if tterm = old_tt then new_tt else
+  if Poly.equal tterm old_tt then new_tt else
   match tterm.v with
   | Bop (opa, lhs, rhs) ->
     {v=Bop (opa,
@@ -350,10 +349,10 @@ let rec fix_type_of_id_in_tterm (vars: var_spec list) tterm ~cast =
   | Apply (f, args) ->
     {v=Apply(f, List.map args ~f:(fix_type_of_id_in_tterm vars ~cast));
      t=tterm.t}
-  | Id x -> begin match List.find vars ~f:(fun v -> v.name = x) with
+  | Id x -> begin match List.find vars ~f:(fun v -> Poly.equal v.name x) with
       | Some v ->
         let id = {v=Id v.name;t=v.value.t} in
-        if (v.value.t = tterm.t) || not cast || is_unknown tterm.t then id
+        if (Poly.equal v.value.t tterm.t) || not cast || is_unknown tterm.t then id
         else {v=Cast (tterm.t, id);t=tterm.t}
       | None -> tterm
     end

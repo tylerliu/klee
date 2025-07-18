@@ -1,0 +1,11 @@
+(lang dune 2.9)
+(name gen-predictor)
+(generate_opam_files true)
+(package
+ (name gen-predictor)
+ (synopsis "KLEE gen-predictor tools")
+ (description "OCaml tools for generating predictors in KLEE")
+ (depends
+  (ocaml (>= 4.14.0))
+  (dune (>= 2.9))
+  (core (>= 0.16.0)))) 

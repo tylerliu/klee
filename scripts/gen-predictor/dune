@@ -1,0 +1,20 @@
+(library
+ (name gen_predictor_lib)
+ (libraries core str)
+ (preprocess (pps ppx_sexp_conv))
+ (modules ir import codegen_rules program_rules domain))
+
+(executable
+ (name codegen)
+ (libraries gen_predictor_lib str)
+ (modules codegen))
+
+(executable
+ (name pre_processing)
+ (libraries gen_predictor_lib str)
+ (modules pre_processing))
+
+(executable
+ (name neg_tree)
+ (libraries gen_predictor_lib str)
+ (modules neg_tree)) 

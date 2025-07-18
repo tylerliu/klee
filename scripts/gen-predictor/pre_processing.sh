@@ -11,11 +11,11 @@ python3 $SCRIPT_DIR/gen_rules.py $PORT_LIST
 
 pushd $SCRIPT_DIR >> /dev/null
   touch program_rules.ml
-  make pre_processing.byte
+  dune build pre_processing.exe
 popd >> /dev/null
 
 cat $REUSED_SYMBOLS | cut -d "|" -f2 > temp
-$SCRIPT_DIR/pre_processing.byte temp > temp1
+$SCRIPT_DIR/_build/default/pre_processing.exe temp > temp1
 cat $REUSED_SYMBOLS | cut -d "|" -f1 > temp
 paste temp temp1 > $FIXED_SYMBOLS
 rm temp temp1

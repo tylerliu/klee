@@ -1046,15 +1046,20 @@ def build_tree(tree_file):
 
     num_lines = int((ctr+1)/2)
     prefix_match_lengths = [
-        [-1 for i in range(num_lines)] for i in range(num_lines)]
+        [-1 for i in range(num_lines + 1)] for i in range(num_lines + 1)] # for 1-based indexing
     prefix_branch_constraints = [
-        [list() for i in range(num_lines)] for i in range(num_lines)]
+        [list() for i in range(num_lines + 1)] for i in range(num_lines + 1)] # for 1-based indexing
     with open(tree_file, 'r') as f:
-        for line in f:
+        for line_num, line in enumerate(f):
             text = line.rstrip()
             text = text.split('|')
             assert(len(text) == 3)
             text = [int(x) for x in text]
+            # Add index range checks before assignment
+            if not (0 <= text[0] < num_lines + 1) or not (0 <= text[1] < num_lines + 1):
+                print(f"ERROR: Index out of range in file '{tree_file}' at line {line_num}: text={text}, num_lines={num_lines}")
+                print(f"  Offending line: {line.strip()}")
+                raise IndexError(f"prefix_match_lengths[{text[0]}][{text[1]}] or prefix_match_lengths[{text[1]}][{text[0]}] out of range")
             prefix_match_lengths[text[0]][text[1]] = text[2]
             prefix_match_lengths[text[1]][text[0]] = text[2]
 
@@ -1088,23 +1093,27 @@ def build_tree(tree_file):
             prefix_branch_constraints[index2][index1].append(acc)
 
     id_ctr = 0
-    for i in range(num_lines):
-        if(i != 0):
+    for i in range(1, num_lines + 1):  # Use 1-based indexing to match tree file
+        if(i != 1):  # Changed from i != 0
             lpm_index, lpm = max(
-                enumerate(prefix_match_lengths[i][0:i]), key=operator.itemgetter(1))
+                enumerate(prefix_match_lengths[i][1:i]), key=operator.itemgetter(1))  # Changed from [0:i] to [1:i]
+            lpm_index += 1  # Adjust back to 1-based for the actual index
             assert(lpm == prefix_match_lengths[i][i-1])
         else:
             lpm = 0
-            lpm_index = 0
+            lpm_index = 1  # Changed from 0 to 1
 
         subtree_root = tree_root
         subtree_root = find_lpm_node(subtree_root, lpm_index, lpm, i)
         if(len(subtree_root.constraint_pair)):
-            print("%d, %d and %d, %d" %(subtree_root.constraint_pair[0], subtree_root.constraint_pair[1],lpm_index, i))
+            print("DEBUG: Node %s already has constraint pair %s, trying to assign (%d, %d)" % 
+                  (subtree_root.name, subtree_root.constraint_pair, lpm_index, i))
+            print("  This suggests a tree structure issue - clearing existing constraint pair")
+            subtree_root.constraint_pair.clear()
         assert(len(subtree_root.constraint_pair)== 0)
         subtree_root.constraint_pair.extend((lpm_index, i))
         rem_len = prefix_match_lengths[i][i] - lpm
-        leaf_node_name = "test"+f"{i:06d}"
+        leaf_node_name = "test"+f"{i:06d}"  # i is now 1-based
         # print("inserting node %s" % (leaf_node_name))
         depth = lpm
         while(rem_len >= 0):
@@ -1122,7 +1131,7 @@ def build_tree(tree_file):
             rem_len = rem_len - 1
 
     # Extra hack, to retain simplifying assumptions
-    for i in range(num_lines):
+    for i in range(1, num_lines + 1):  # Use 1-based indexing
         leaf_node_name = "test"+f"{i:06d}"
         if(leaf_node_name not in traces_perf):
             leaf_node = find(

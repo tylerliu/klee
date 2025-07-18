@@ -1,4 +1,3 @@
-open Core
 open Ir
 
 let rewrite_rules : (term -> term option) list =
@@ -86,8 +85,6 @@ let rewrite_rules : (term -> term option) list =
       (* Src and dest IP ports *)
       | Utility (Slice ({v=Id "lb_pkt_icmp";t=_}, 272, 16)) ->
       Some (Str_idx ({v=Id "pkt";t=Unknown}, "src_port"))
-      | Utility (Slice ({v=Id "user_buf";t=_}, 288, 16)) ->
-      Some (Str_idx ({v=Id "pkt";t=Unknown}, "dst_port"))
       (* Insert program specific rules here *)
       | _ -> None);
 

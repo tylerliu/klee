@@ -89,10 +89,11 @@ let is_int str = match parse_int str with Some _ -> true | None -> false
 let guess_type exp t =
   match t with
   | Uunknown -> begin match exp with
-      | Sexp.List [Sexp.Atom w; _] when w = "w8" -> Uint8
-      | Sexp.List [Sexp.Atom w; _] when w = "w16" -> Uint16
-      | Sexp.List [Sexp.Atom w; _] when w = "w32" -> Uint32
-      | Sexp.List [Sexp.Atom w; _] when w = "w64" -> Uint64
+      | Sexp.Atom v when is_int v -> Uint32  (* Default to Uint32 for simple integers *)
+      | Sexp.List [Sexp.Atom w; _] when String.equal w "w8" -> Uint8
+      | Sexp.List [Sexp.Atom w; _] when String.equal w "w16" -> Uint16
+      | Sexp.List [Sexp.Atom w; _] when String.equal w "w32" -> Uint32
+      | Sexp.List [Sexp.Atom w; _] when String.equal w "w64" -> Uint64
       | Sexp.List (Sexp.Atom _ :: Sexp.Atom "w8" :: _) -> Uint8
       | Sexp.List (Sexp.Atom _ :: Sexp.Atom "w16" :: _) -> Uint16
       | Sexp.List (Sexp.Atom _ :: Sexp.Atom "w32" :: _) -> Uint32
@@ -100,10 +101,11 @@ let guess_type exp t =
       | _ -> failwith ("GUESS TYPE FAILURE UUnknown " ^ (Sexp.to_string exp))
     end
   | Sunknown -> begin match exp with
-      | Sexp.List [Sexp.Atom w; _] when w = "w8" -> Sint8
-      | Sexp.List [Sexp.Atom w; _] when w = "w16" -> Sint16
-      | Sexp.List [Sexp.Atom w; _] when w = "w32" -> Sint32
-      | Sexp.List [Sexp.Atom w; _] when w = "w64" -> Sint64
+      | Sexp.Atom v when is_int v -> Sint32  (* Default to Sint32 for simple integers *)
+      | Sexp.List [Sexp.Atom w; _] when String.equal w "w8" -> Sint8
+      | Sexp.List [Sexp.Atom w; _] when String.equal w "w16" -> Sint16
+      | Sexp.List [Sexp.Atom w; _] when String.equal w "w32" -> Sint32
+      | Sexp.List [Sexp.Atom w; _] when String.equal w "w64" -> Sint64
       | Sexp.List (Sexp.Atom _ :: Sexp.Atom "w8" :: _) -> Sint8
       | Sexp.List (Sexp.Atom _ :: Sexp.Atom "w16" :: _) -> Sint16
       | Sexp.List (Sexp.Atom _ :: Sexp.Atom "w32" :: _) -> Sint32
@@ -111,16 +113,17 @@ let guess_type exp t =
       | _ -> failwith ("GUESS TYPE FAILURE SUnknown " ^ (Sexp.to_string exp))
     end
   | Unknown ->  begin match exp with
-      | Sexp.Atom f when f = "false" || f = "true" -> Boolean
-      | Sexp.List [Sexp.Atom w; Sexp.Atom f] when w = "w32" && f = "0" ->
+      | Sexp.Atom f when String.equal f "false" || String.equal f "true" -> Boolean
+      | Sexp.Atom v when is_int v -> Uint32  (* Default to Uint32 for simple integers *)
+      | Sexp.List [Sexp.Atom w; Sexp.Atom f] when String.equal w "w32" && String.equal f "0" ->
         lprintf "GUESS TYPE BOOL\n"; Boolean
-      | Sexp.List [Sexp.Atom w; Sexp.Atom v] when w = "w8" ->
+      | Sexp.List [Sexp.Atom w; Sexp.Atom v] when String.equal w "w8" ->
         if (is_int v) then Sint8 else Uint8
-      | Sexp.List [Sexp.Atom w; Sexp.Atom v] when w = "w16" ->
+      | Sexp.List [Sexp.Atom w; Sexp.Atom v] when String.equal w "w16" ->
         if (is_int v) then Sint16 else Uint16
-      | Sexp.List [Sexp.Atom w; Sexp.Atom v] when w = "w32" ->
+      | Sexp.List [Sexp.Atom w; Sexp.Atom v] when String.equal w "w32" ->
         if (is_int v) then Sint32 else Uint32
-      | Sexp.List [Sexp.Atom w; Sexp.Atom v] when w = "w64" ->
+      | Sexp.List [Sexp.Atom w; Sexp.Atom v] when String.equal w "w64" ->
         if (is_int v) then Sint64 else Uint64
       | Sexp.List (Sexp.Atom _ :: Sexp.Atom "w8" :: _) -> Uint8
       | Sexp.List (Sexp.Atom _ :: Sexp.Atom "w16" :: _) -> Uint16
@@ -135,9 +138,9 @@ let guess_type exp t =
 let int_str_of_sexp value =
   let str = Sexp.to_string value in
   let prefix = String.sub str ~pos:0 ~len:3 in
-  if prefix = "(w8" then
+  if String.equal prefix "(w8" then
     String.sub str ~pos:4 ~len:((String.length str - 5))
-  else if prefix = "(w1" || prefix = "(w3" || prefix = "(w6" then
+  else if String.equal prefix "(w1" || String.equal prefix "(w3" || String.equal prefix "(w6" then
     (* 16, 32, 64 *)
     String.sub str ~pos:5 ~len:((String.length str - 6))
   else str
@@ -165,7 +168,7 @@ let expand_shorted_sexp sexp =
   in
   let rec get_defs sexp =
     let merge_defs d1 d2 =
-      String.Map.merge d1 d2
+      Map.merge d1 d2
         ~f:(fun ~key pres ->
             ignore key;
             match pres with
@@ -176,7 +179,7 @@ let expand_shorted_sexp sexp =
     let rec do_list lst =
       match lst with
       | Sexp.Atom v :: def :: tl when String.is_suffix v ~suffix:":" ->
-        merge_defs (get_defs def) (String.Map.add_exn (do_list tl)
+        merge_defs (get_defs def) (Map.add_exn (do_list tl)
                                      ~key:(String.prefix v
                                              ((String.length v) - 1))
                                      ~data:(remove_defs def))
@@ -197,7 +200,7 @@ let expand_shorted_sexp sexp =
               (expanded::prev_expanded,changed||prev_changed))
       in
       (Sexp.List (List.rev expaneded_lst),smth_changed)
-    | Sexp.Atom str -> match String.Map.find vars str with
+    | Sexp.Atom str -> match Map.find vars str with
       | Some ex -> (ex,true)
       | None -> (exp,false)
   in
@@ -221,7 +224,7 @@ let expand_shorted_sexp sexp =
     else defs
   in
   let map_expandable map defs =
-    List.exists (String.Map.data map) ~f:(fun el -> (snd (expand_exp el defs)))
+    List.exists (Map.data map) ~f:(fun el -> (snd (expand_exp el defs)))
   in
   let defs = get_defs sexp in
   let defs = cross_expand_defs_fixp defs in
@@ -338,7 +341,7 @@ let get_sint_in_bounds v =
 
 let make_cmplx_val exp t =
   let key = int_str_of_sexp exp in
-  match String.Map.find !allocated_complex_vals key with
+  match Map.find !allocated_complex_vals key with
   | Some spec -> {v=Id spec.name;t=spec.value.t}
   | None ->
     let name = complex_val_name_gen#generate in
@@ -346,7 +349,7 @@ let make_cmplx_val exp t =
       name (Sexp.to_string exp) (ttype_to_str t);
     let value = {v=Id key;t} in
     allocated_complex_vals :=
-      String.Map.add_exn !allocated_complex_vals ~key
+      Map.add_exn !allocated_complex_vals ~key
         ~data:{name;value};
     {v=Id name;t}
 
@@ -386,15 +389,15 @@ let find_first_known_address_comply addr tt at property =
                     (Int64.to_string addr) ^ " x.tt:" ^ (ttype_to_str x.tt) ^
                     " tt:" ^ (ttype_to_str tt))
          | Ptr ptee1, Array ptee2 ->
-           if (ptee1 <> ptee2) then
+           if not (Poly.equal ptee1 ptee2) then
              lprintf "discarding: %s * != %s []\n"
                (ttype_to_str ptee1) (ttype_to_str ptee2);
-           ptee1 = ptee2
+           Poly.equal ptee1 ptee2
          | t1, t2 ->
-           if (t1 <> t2) then
+           if not (Poly.equal t1 t2) then
              lprintf "discarding: %s != %s\n"
                (ttype_to_str t1) (ttype_to_str t2);
-           t1 = t2)
+           Poly.equal t1 t2)
         &&
         (property x))
   in
@@ -410,7 +413,7 @@ let find_first_known_address_comply addr tt at property =
           else cand)
       candidates
   in
-  Option.bind (Int64.Map.find !known_addresses addr)
+  Option.bind (Map.find !known_addresses addr)
     ~f:(fun lst ->
        Option.map ~f:(fun addr_sp -> addr_sp.value)
          (find_the_right (legit_candidates lst)))
@@ -430,8 +433,8 @@ let find_first_known_address_or_dummy addr t at =
   | None -> {v=Utility (Ptr_placeholder addr); t=Ptr t}
 
 let make_cast_if_needed tt srct dstt =
-  if srct = dstt then tt
-  else if srct = Uint32 && dstt = Uint16 then
+  if Poly.equal srct dstt then tt
+  else if Poly.equal srct Uint32 && Poly.equal dstt Uint16 then
     {v=Cast(dstt, {v=Bop(Bit_and, tt, {v=Int 0xFFFF;t=Uint32});t=Uint32});
      t=dstt}
   else {v=Cast(dstt, tt);t=dstt}
@@ -445,7 +448,7 @@ let rec get_sexp_value_raw exp ?(at=Beginning) t =
   in
   let exp = match exp with
     | Sexp.List [Sexp.Atom w; Sexp.Atom f]
-      when w = "w8" || w = "w16" || w = "w32" || w = "w64" -> Sexp.Atom f
+      when String.equal w "w8" || String.equal w "w16" || String.equal w "w32" || String.equal w "w64" -> Sexp.Atom f
     | _ -> exp
   in
   match exp with
@@ -460,7 +463,7 @@ let rec get_sexp_value_raw exp ?(at=Beginning) t =
         (*FIXME: deduce the true integer type for the value: *)
         else begin match parse_int v with
           | Some n -> let addr = (Int64.of_int n) in
-                      if addr = 0L then {v=Int 0; t}
+                      if Int64.equal addr 0L then {v=Int 0; t}
                       else
                         begin match t with
                         | Ptr x -> find_first_known_address_or_dummy addr x at
@@ -498,51 +501,51 @@ let rec get_sexp_value_raw exp ?(at=Beginning) t =
   | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "w8"; Sexp.Atom "0"; src;] ->
     get_sexp_value_raw src t ~at
   | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "w16"; Sexp.Atom "0"; src;]
-    when t = Uint16 ->
+    when Poly.equal t Uint16 ->
     let srct = (guess_type src Uunknown) in
     make_cast_if_needed (get_sexp_value_raw src srct ~at) srct t
   | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "w16"; Sexp.Atom "0"; src;]
-    when t = Sint16 ->
+    when Poly.equal t Sint16 ->
     let srct = (guess_type src Sunknown) in
     make_cast_if_needed (get_sexp_value_raw src srct ~at) srct t
   | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "w16"; Sexp.Atom "0"; src;]
-    when t = Uint64 ->
-    let srct = (guess_type src Uunknown) in
-    {v=Cast(t,{v=Cast(Uint16, (get_sexp_value_raw src srct ~at));t=Uint16});t}
-  | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "w16"; Sexp.Atom "0"; src;]
-    when t = Sint64 ->
-    let srct = (guess_type src Sunknown) in
-    {v=Cast(t,{v=Cast(Sint16, (get_sexp_value_raw src srct ~at));t=Sint16});t}
-  | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "w16"; Sexp.Atom "0"; src;]
-    when t = Uint32 ->
+    when Poly.equal t Uint64 ->
     let srct = (guess_type src Uunknown) in
     {v=Cast(t,{v=Cast(Uint16, (get_sexp_value_raw src srct ~at));t=Uint16});t}
   | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "w16"; Sexp.Atom "0"; src;]
-    when t = Sint32 ->
+    when Poly.equal t Sint64 ->
+    let srct = (guess_type src Sunknown) in
+    {v=Cast(t,{v=Cast(Sint16, (get_sexp_value_raw src srct ~at));t=Sint16});t}
+  | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "w16"; Sexp.Atom "0"; src;]
+    when Poly.equal t Uint32 ->
+    let srct = (guess_type src Uunknown) in
+    {v=Cast(t,{v=Cast(Uint16, (get_sexp_value_raw src srct ~at));t=Uint16});t}
+  | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "w16"; Sexp.Atom "0"; src;]
+    when Poly.equal t Sint32 ->
     let srct = (guess_type src Sunknown) in
     {v=Cast(t,{v=Cast(Sint16, (get_sexp_value_raw src srct ~at));t=Sint16});t}
   | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "w32"; Sexp.Atom "0"; src;]
-    when t = Uint32 ->
+    when Poly.equal t Uint32 ->
     let srct = (guess_type src Uunknown) in
     make_cast_if_needed (get_sexp_value_raw src srct ~at) srct t
   | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "w32"; Sexp.Atom "0"; src;]
-    when t = Sint32 ->
+    when Poly.equal t Sint32 ->
     let srct = (guess_type src Sunknown) in
     make_cast_if_needed (get_sexp_value_raw src srct ~at) srct t
   | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "w32"; Sexp.Atom "0"; src;]
-    when t = Uint64 ->
+    when Poly.equal t Uint64 ->
     let srct = (guess_type src Uunknown) in
     {v=Cast(t,{v=Cast(Uint32, (get_sexp_value_raw src srct ~at));t=Uint32});t}
   | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "w32"; Sexp.Atom "0"; src;]
-    when t = Sint64 ->
+    when Poly.equal t Sint64 ->
     let srct = (guess_type src Sunknown) in
     {v=Cast(t,{v=Cast(Sint32, (get_sexp_value_raw src srct ~at));t=Sint32});t}
   | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "w64"; Sexp.Atom "0"; src;]
-    when t = Uint64 ->
+    when Poly.equal t Uint64 ->
     let srct = (guess_type src Uunknown) in
     make_cast_if_needed (get_sexp_value_raw src srct ~at) srct t
   | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "w64"; Sexp.Atom "0"; src;]
-    when t = Sint64 ->
+    when Poly.equal t Sint64 ->
     let srct = (guess_type src Sunknown) in
     make_cast_if_needed (get_sexp_value_raw src srct ~at) srct t
   | Sexp.List [Sexp.Atom "Extract"; Sexp.Atom "0"; src;] ->
@@ -655,7 +658,7 @@ let rec get_sexp_value_raw exp ?(at=Beginning) t =
     begin 
       match rhs with
       | Sexp.List [Sexp.Atom "w32"; Sexp.Atom n] when is_int n ->
-        if t = Boolean then
+        if Poly.equal t Boolean then
           {v=Bop (Eq,
                   (get_sexp_value_raw rhs Uint32 ~at),
                   {v=Bop (Bit_and,
@@ -670,7 +673,7 @@ let rec get_sexp_value_raw exp ?(at=Beginning) t =
         let ty = guess_type_l [lhs;rhs] t in
         lprintf "interesting And case{%s}: %s "
           (ttype_to_str ty) (Sexp.to_string exp);
-        if ty = Boolean then
+        if Poly.equal ty Boolean then
           {v=Bop (And,
                   (get_sexp_value_raw lhs ty ~at),
                   (get_sexp_value_raw rhs ty ~at));t=ty}

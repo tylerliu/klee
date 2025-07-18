@@ -429,6 +429,7 @@ std::map<std::string, long> process_candidate(
     std::map<std::string, perf_formula> &total_performance_formula) {
   LOAD_SYMBOL(contract, contract_get_metrics);
   LOAD_SYMBOL(contract, contract_get_user_variables);
+  LOAD_SYMBOL(contract, contract_get_optimization_variables);
   LOAD_SYMBOL(contract, contract_has_contract);
   LOAD_SYMBOL(contract, contract_num_sub_contracts);
   LOAD_SYMBOL(contract, contract_get_subcontract_constraints);
@@ -440,8 +441,27 @@ std::map<std::string, long> process_candidate(
   /* Just for assert */
   std::map<std::string, std::string> user_variables_str =
       contract_get_user_variables();
+  std::map<std::string, std::set<std::string>> optimization_variables_str =
+      contract_get_optimization_variables();
 
 #ifdef DEBUG
+  /* Debug: Print UVs and OVs */
+  std::cerr << "Debug: User Variables (UVs):" << std::endl;
+  for (auto &uv : user_variables_str) {
+    std::cerr << "  " << uv.first << " = " << uv.second << std::endl;
+  }
+  
+  std::cerr << "Debug: Optimization Variables (OVs):" << std::endl;
+  for (auto &ov : optimization_variables_str) {
+    std::cerr << "  " << ov.first << " = {";
+    bool first = true;
+    for (auto &val : ov.second) {
+      if (!first) std::cerr << ", ";
+      std::cerr << val;
+      first = false;
+    }
+    std::cerr << "}" << std::endl;
+  }
   std::cerr << std::endl;
   std::cerr << "Debug: Trying candidate with variables:" << std::endl;
   for (auto vit : vars) {
@@ -488,7 +508,7 @@ std::map<std::string, long> process_candidate(
 
   for (auto var : vars) {
     if (var.first.ds_id == "" && var.first.occurence == 0) {
-      assert(user_variables_str.count(var.first.name) && "Misbehaved non-PCV");
+      assert((user_variables_str.count(var.first.name) || optimization_variables_str.count(var.first.name)) && "Misbehaved non-PCV");
       for (auto vit : call_path->initial_extra_vars) {
         if (vit.first.name == var.first.name) {
           std::map<klee::ref<klee::Expr>, klee::ref<klee::Expr>> replacements;
