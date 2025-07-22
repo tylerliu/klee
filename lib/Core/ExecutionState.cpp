@@ -837,7 +837,7 @@ void ExecutionState::traceExtraFPtr(ref<Expr> ptr, Expr::Width width,
   extraFPtr->funPtr = (Function *)address->getZExtValue();
 
   uint32_t fn_id = 0;
-  std::string fn_name = extraFPtr->funPtr->getName();
+  llvm::StringRef fn_name = extraFPtr->funPtr->getName();
   if (name == "map_hash") {
     if (fn_name == "FlowId_hash" || fn_name == "fw_flow_hash")
       fn_id = 1;

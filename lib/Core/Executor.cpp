@@ -2023,8 +2023,8 @@ Function* Executor::getTargetFunction(Value *calledVal, ExecutionState &state) {
       if (!Visited.insert(gv).second)
         return 0;
         
-      std::string alias = state.getFnAlias(gv->getName());
-      if (alias != "") {
+      std::string alias = state.getFnAlias(gv->getName().str());
+      if (!alias.empty()) {
         GlobalValue *old_gv = gv;
         gv = kmodule->module->getNamedValue(alias);
         if (!gv) {

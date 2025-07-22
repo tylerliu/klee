@@ -16,8 +16,6 @@ pushd "$KLEE_DIR/build"
                             -DENABLE_UNIT_TESTS=OFF \
                             -DBUILD_SHARED_LIBS=OFF \
                             -DLLVM_CONFIG_BINARY="$KLEE_DIR/../llvm/build/bin/llvm-config" \
-                            -DLLVMCC="$KLEE_DIR/../llvm/build/bin/clang" \
-                            -DLLVMCXX="$KLEE_DIR/../llvm/build/bin/clang++" \
                             -DENABLE_SOLVER_Z3=ON \
                             -DENABLE_KLEE_UCLIBC=ON \
                             -DKLEE_UCLIBC_PATH="$KLEE_DIR/../klee-uclibc" \
@@ -40,6 +38,15 @@ fi
 # Instruction Tracer
 pushd trace-instructions
     make clean && make PINDIR="$KLEE_DIR/../pin"
+popd
+
+# LLVM IR Instruction Tracer
+pushd trace-ir-instrs
+    rm -rf build && mkdir build && cd build
+    CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0" \
+    cmake -DLLVM_CONFIG_BINARY="$KLEE_DIR/../llvm/build/bin/llvm-config" \
+          ..
+    make
 popd
 
 # Tree generation
