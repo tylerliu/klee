@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdarg.h>
+#include <dlfcn.h>
 
 extern "C" {
 static FILE* trace_file = nullptr;
@@ -38,21 +40,31 @@ void check_tracing_closed() {
 
 void trace_inst_log(const char* fn, const char* op) {
     if (!is_tracing || !trace_file) return;
+    is_tracing = false;
     fprintf(trace_file, "%s | %s\n", fn, op);
+    is_tracing = true;
 }
-void trace_call_log(const char* fn, const char* callee, int argc, const char** argv) {
+void trace_call_log(const char* fn, const char* callee, const char* fmt, ...) {
     if (!is_tracing || !trace_file) return;
-    fprintf(trace_file, "CALL %s (", callee);
-    for (int i = 0; i < argc; ++i) {
-        fprintf(trace_file, "%s%s", argv[i], (i+1<argc)?", ":"");
-    }
-    fprintf(trace_file, ")\n");
+    is_tracing = false;
+    char buf[1024];
+    va_list args;
+    va_start(args, fmt);
+    vsprintf(buf, fmt, args);
+    va_end(args);
+    fprintf(trace_file, "CALL %s (%s)\n", callee, buf);
+    is_tracing = true;
 }
 void trace_mem_log(const char* fn, const char* type, const void* addr) {
     if (!is_tracing || !trace_file) return;
+    is_tracing = false;
     fprintf(trace_file, "%s %p\n", type, addr);
+    is_tracing = true;
 }
 void trace_close_log() {
+    if (is_tracing) {
+        fprintf(stderr, "ERROR: Tracing was not properly closed before program exit!\n");
+    }
     if (trace_file && trace_file != stderr) {
         fprintf(trace_file, "EOF\n");
         fclose(trace_file);

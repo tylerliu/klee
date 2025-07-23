@@ -38,7 +38,7 @@ struct TraceIRInstrs : public ModulePass {
         FunctionType *CheckClosedTy = FunctionType::get(VoidTy, {}, false);
         FunctionType *TraceCloseTy = FunctionType::get(VoidTy, {}, false);
         FunctionType *TraceInstTy = FunctionType::get(VoidTy, {I8PtrTy, I8PtrTy}, false);
-        FunctionType *TraceCallTy = FunctionType::get(VoidTy, {I8PtrTy, I8PtrTy, I32Ty, PointerType::getUnqual(I8PtrTy)}, false);
+        FunctionType *TraceCallTy = FunctionType::get(VoidTy, {I8PtrTy, I8PtrTy, I8PtrTy}, true);
         FunctionType *TraceMemTy = FunctionType::get(VoidTy, {I8PtrTy, I8PtrTy, I8PtrTy}, false);
         FunctionType *OpenTraceFileTy = FunctionType::get(VoidTy, {}, false);
         setIsTracing = cast<Function>(M.getOrInsertFunction("set_is_tracing", SetTracingTy).getCallee());
@@ -68,7 +68,8 @@ struct TraceIRInstrs : public ModulePass {
     }
 
     // Instrument a single basic block
-    void instrumentBasicBlock(Function &F, BasicBlock &BB) {
+    bool instrumentBasicBlock(Function &F, BasicBlock &BB) {
+        bool modified = false;
         // Collect PHI nodes
         std::vector<PHINode*> phiNodes;
         auto it = BB.begin();
@@ -84,6 +85,7 @@ struct TraceIRInstrs : public ModulePass {
                 Value *fnStr = builder.CreateGlobalStringPtr(F.getName());
                 Value *opStr = builder.CreateGlobalStringPtr(phi->getOpcodeName());
                 builder.CreateCall(traceInst, {fnStr, opStr});
+                modified = true;
             }
         }
         // Instrument the rest of the instructions (non-PHI)
@@ -94,36 +96,53 @@ struct TraceIRInstrs : public ModulePass {
             Value *opStr = builder.CreateGlobalStringPtr(I.getOpcodeName());
             if (auto *call = dyn_cast<CallInst>(&I)) {
                 if (isRuntimeCall(call)) continue; // Skip calls to runtime functions
-                std::vector<Value*> argPtrs;
+                std::string fmt;
+                std::vector<Value*> callArgs = {fnStr};
+                callArgs.push_back(builder.CreateGlobalStringPtr(call->getCalledFunction() ? call->getCalledFunction()->getName() : "<indirect>"));
+                std::vector<Value*> valueArgs;
                 for (unsigned i = 0; i < call->getNumArgOperands(); ++i) {
-                    Value *argStr = builder.CreateGlobalStringPtr("<arg>");
-                    argPtrs.push_back(argStr);
-                }
-                // Use alloca and store to create an i8** array in memory, not a bitcast
-                Value *argvAlloca = nullptr;
-                if (!argPtrs.empty()) {
-                    IRBuilder<> entryBuilder(&*F.getEntryBlock().getFirstInsertionPt());
-                    argvAlloca = entryBuilder.CreateAlloca(I8PtrTy, builder.getInt32(argPtrs.size()));
-                    for (unsigned i = 0; i < argPtrs.size(); ++i) {
-                        Value *elemPtr = builder.CreateGEP(I8PtrTy, argvAlloca, builder.getInt32(i));
-                        builder.CreateStore(argPtrs[i], elemPtr);
+                    Value *arg = call->getArgOperand(i);
+                    if (arg->getType()->isIntegerTy()) {
+                        fmt += "%ld, ";
+                        valueArgs.push_back(builder.CreateSExtOrBitCast(arg, builder.getInt64Ty()));
+                    } else if (arg->getType()->isFloatingPointTy()) {
+                        fmt += "%f, ";
+                        valueArgs.push_back(builder.CreateFPExt(arg, builder.getDoubleTy()));
+                    } else if (auto *cda = dyn_cast<ConstantDataArray>(arg)) {
+                        if (cda->isString()) {
+                            fmt += "%s, ";
+                            valueArgs.push_back(builder.CreateGlobalStringPtr(cda->getAsString()));
+                        } else {
+                            fmt += "%p, ";
+                            valueArgs.push_back(builder.CreatePointerCast(arg, I8PtrTy));
+                        }
+                    } else if (arg->getType()->isPointerTy()) {
+                        fmt += "%p, ";
+                        valueArgs.push_back(builder.CreatePointerCast(arg, I8PtrTy));
+                    } else {
+                        fmt += "<unk>, ";
                     }
-                } else {
-                    argvAlloca = Constant::getNullValue(PointerType::getUnqual(I8PtrTy));
                 }
-                Value *calleeStr = builder.CreateGlobalStringPtr(call->getCalledFunction() ? call->getCalledFunction()->getName() : "<indirect>");
-                builder.CreateCall(traceCall, {fnStr, calleeStr, builder.getInt32(argPtrs.size()), argvAlloca});
+                Value *fmtStr = builder.CreateGlobalStringPtr(fmt.substr(0, fmt.size() - 2));
+                callArgs.push_back(fmtStr);
+                callArgs.insert(callArgs.end(), valueArgs.begin(), valueArgs.end());
+                builder.CreateCall(traceCall, callArgs);
+                modified = true;
             } else if (auto *load = dyn_cast<LoadInst>(&I)) {
                 Value *addr = builder.CreatePointerCast(load->getPointerOperand(), I8PtrTy);
                 Value *typeStr = builder.CreateGlobalStringPtr("LOAD");
                 builder.CreateCall(traceMem, {fnStr, typeStr, addr});
+                modified = true;
             } else if (auto *store = dyn_cast<StoreInst>(&I)) {
                 Value *addr = builder.CreatePointerCast(store->getPointerOperand(), I8PtrTy);
                 Value *typeStr = builder.CreateGlobalStringPtr("STORE");
                 builder.CreateCall(traceMem, {fnStr, typeStr, addr});
+                modified = true;
             }
             builder.CreateCall(traceInst, {fnStr, opStr});
+            modified = true;
         }
+        return modified;
     }
 
     // Instrument a single function
@@ -169,7 +188,8 @@ struct TraceIRInstrs : public ModulePass {
         }
         // Instrument all basic blocks
         for (BasicBlock &BB : F) {
-            instrumentBasicBlock(F, BB);
+            if (instrumentBasicBlock(F, BB))
+                modified = true;
         }
         return modified;
     }
