@@ -20,7 +20,7 @@ def original_metrics(demarcated_file):
     with open(demarcated_file, 'r') as trace_file:
         trace_lines = [x.rstrip() for x in trace_file]
     # Skip first two lines (header/convenience) if present
-    instr_trace = trace_lines[2:] if len(trace_lines) > 2 and '|' in trace_lines[0] else trace_lines
+    instr_trace = trace_lines[2:] if len(trace_lines) >= 2 and '|' in trace_lines[1] else trace_lines
     instructions = []
     for a in instr_trace:
         if a.count('|') == 2:
@@ -62,7 +62,7 @@ def demarcated_metrics(cache_stats_file, demarcated_file):
                 continue
             if l.startswith("Call to ") or l.startswith("CALL "):
                 continue
-            if l == "Function | Instruction" or l == "EOF":
+            if l == "Function | Instruction | Operands" or l == "EOF":
                 continue
             instr_count += 1
     print("[Demarcated method]")

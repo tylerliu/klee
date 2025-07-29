@@ -18,7 +18,7 @@ void open_trace_file() {
             exit(1);
         } else {
             // Write header
-            fprintf(trace_file, "Function | Instruction\n");
+            fprintf(trace_file, "Function | Instruction | Operands\n");
         }
     }
 }
@@ -38,12 +38,13 @@ void check_tracing_closed() {
     }
 }
 
-void trace_inst_log(const char* fn, const char* op) {
+void trace_inst_log(const char* fn, const char* op, const char* operand_types) {
     if (!is_tracing || !trace_file) return;
     is_tracing = false;
-    fprintf(trace_file, "%s | %s\n", fn, op);
+    fprintf(trace_file, "%s | %s | %s\n", fn, op, operand_types);
     is_tracing = true;
 }
+
 void trace_call_log(const char* fn, const char* callee, const char* fmt, ...) {
     if (!is_tracing || !trace_file) return;
     is_tracing = false;
@@ -55,12 +56,14 @@ void trace_call_log(const char* fn, const char* callee, const char* fmt, ...) {
     fprintf(trace_file, "CALL %s (%s)\n", callee, buf);
     is_tracing = true;
 }
+
 void trace_mem_log(const char* fn, const char* type, const void* addr) {
     if (!is_tracing || !trace_file) return;
     is_tracing = false;
     fprintf(trace_file, "%s %p\n", type, addr);
     is_tracing = true;
 }
+
 void trace_close_log() {
     if (is_tracing) {
         fprintf(stderr, "ERROR: Tracing was not properly closed before program exit!\n");

@@ -56,10 +56,10 @@ def map_special_functions(fn_name):
     return fn_name
 
 def parse_function_name_from_instruction(line):
-    # Expects 'Function | Instruction'
-    parts = line.split(" | ")
-    if len(parts) == 2:
-        return parts[0].strip(), parts[1].strip()
+    # Expects 'Function | Instruction | Operands' (Operands may be empty)
+    parts = [p.strip() for p in line.split('|')]
+    if len(parts) >= 3:
+        return parts[0], parts[1]
     return None, None
 
 def main():
@@ -73,7 +73,7 @@ def main():
         lines = [line.rstrip() for line in f if line.rstrip()]
 
     # Remove header and EOF
-    lines = [l for l in lines if l != "Function | Instruction" and l != "EOF"]
+    lines = [l for l in lines if l != "Function | Instruction | Operands" and l != "EOF"]
 
     output_lines = []
     call_stack = []  # Stack of (function_name, model_type) tuples
@@ -141,7 +141,7 @@ def main():
                 output_lines.append(text)
             i += 1
             continue
-        # Regular instruction line: 'Function | Instruction'
+        # Regular instruction line: 'Function | Instruction | Operands' (Operands may be empty)
         fn_name, instruction = parse_function_name_from_instruction(text)
         if fn_name is not None:
             # Rebuild call stack if function context changes
@@ -159,7 +159,7 @@ def main():
                 output_lines.append(text)
             i += 1
             continue
-        # Malformed line, Throw error
+        # Malformed line, Throw error only if there are fewer than 3 fields
         print(f"Error: Malformed line: {text}")
         exit(1)
 

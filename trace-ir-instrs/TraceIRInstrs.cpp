@@ -37,7 +37,8 @@ struct TraceIRInstrs : public ModulePass {
         FunctionType *SetTracingTy = FunctionType::get(VoidTy, {Int1Ty}, false);
         FunctionType *CheckClosedTy = FunctionType::get(VoidTy, {}, false);
         FunctionType *TraceCloseTy = FunctionType::get(VoidTy, {}, false);
-        FunctionType *TraceInstTy = FunctionType::get(VoidTy, {I8PtrTy, I8PtrTy}, false);
+        // Update: traceInst now takes a third i8* argument for operand types
+        FunctionType *TraceInstTy = FunctionType::get(VoidTy, {I8PtrTy, I8PtrTy, I8PtrTy}, false);
         FunctionType *TraceCallTy = FunctionType::get(VoidTy, {I8PtrTy, I8PtrTy, I8PtrTy}, true);
         FunctionType *TraceMemTy = FunctionType::get(VoidTy, {I8PtrTy, I8PtrTy, I8PtrTy}, false);
         FunctionType *OpenTraceFileTy = FunctionType::get(VoidTy, {}, false);
@@ -67,6 +68,24 @@ struct TraceIRInstrs : public ModulePass {
         return false;
     }
 
+    // Helper: collect operand types as a string
+    std::string collectOperandTypes(Instruction *I) {
+        std::string allTypes;
+        for (unsigned i = 0; i < I->getNumOperands(); ++i) {
+            if (i > 0) allTypes += ", ";
+            Value *op = I->getOperand(i);
+            std::string typeStr;
+            llvm::raw_string_ostream rso(typeStr);
+            op->getType()->print(rso);
+            if (llvm::isa<llvm::Constant>(op)) {
+                allTypes += rso.str() + " (const)";
+            } else {
+                allTypes += rso.str() + " (reg)";
+            }
+        }
+        return allTypes;
+    }
+
     // Instrument a single basic block
     bool instrumentBasicBlock(Function &F, BasicBlock &BB) {
         bool modified = false;
@@ -84,7 +103,10 @@ struct TraceIRInstrs : public ModulePass {
             for (PHINode *phi : phiNodes) {
                 Value *fnStr = builder.CreateGlobalStringPtr(F.getName());
                 Value *opStr = builder.CreateGlobalStringPtr(phi->getOpcodeName());
-                builder.CreateCall(traceInst, {fnStr, opStr});
+                // Collect operand types
+                std::string allTypes = collectOperandTypes(phi);
+                Value *typesStr = builder.CreateGlobalStringPtr(allTypes);
+                builder.CreateCall(traceInst, {fnStr, opStr, typesStr});
                 modified = true;
             }
         }
@@ -94,6 +116,9 @@ struct TraceIRInstrs : public ModulePass {
             IRBuilder<> builder(&I);
             Value *fnStr = builder.CreateGlobalStringPtr(F.getName());
             Value *opStr = builder.CreateGlobalStringPtr(I.getOpcodeName());
+            // Collect operand types
+            std::string allTypes = collectOperandTypes(&I);
+            Value *typesStr = builder.CreateGlobalStringPtr(allTypes);
             if (auto *call = dyn_cast<CallInst>(&I)) {
                 if (isRuntimeCall(call)) continue; // Skip calls to runtime functions
                 std::string fmt;
@@ -139,7 +164,7 @@ struct TraceIRInstrs : public ModulePass {
                 builder.CreateCall(traceMem, {fnStr, typeStr, addr});
                 modified = true;
             }
-            builder.CreateCall(traceInst, {fnStr, opStr});
+            builder.CreateCall(traceInst, {fnStr, opStr, typesStr});
             modified = true;
         }
         return modified;
