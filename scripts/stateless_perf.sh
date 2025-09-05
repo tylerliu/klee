@@ -8,6 +8,7 @@ output=${2:-stateless-perf.txt}
 verif_arg=${3:-verify-dpdk}
 metrics=${4:-x86}
 bpf=${5:-non-bpf}
+latency_dir=${6:-}
 
 pushd $traces_dir
 
@@ -102,7 +103,8 @@ else
       #traces_dir needs to contain files with the name *.ll.demarcated
       parallel "python3 $py_scripts_dir/stateless_perf_llvm.py {} \
                         \$(basename {} .tracelog.demarcated).cache_stats \
-                        \$(basename {} .ll.tracelog.demarcated).llvm_metrics" \
+                        \$(basename {} .ll.tracelog.demarcated).llvm_metrics \
+                        \"$latency_dir\"" \
                         ::: *.ll.tracelog.demarcated
 
       python3 $py_scripts_dir/llvm_perf.py ./ $output

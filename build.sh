@@ -13,8 +13,8 @@ pushd "$KLEE_DIR/build"
                         CMAKE_PREFIX_PATH="$KLEE_DIR/../z3/build" \
                         CMAKE_INCLUDE_PATH="$KLEE_DIR/../z3/build/include/" \
                         cmake \
-                            -DENABLE_UNIT_TESTS=OFF \
-                            -DBUILD_SHARED_LIBS=OFF \
+                            -DENABLE_UNIT_TESTS=ON \
+                            -DBUILD_SHARED_LIBS=ON \
                             -DLLVM_CONFIG_BINARY="$KLEE_DIR/../llvm/build/bin/llvm-config" \
                             -DENABLE_SOLVER_Z3=ON \
                             -DENABLE_KLEE_UCLIBC=ON \
