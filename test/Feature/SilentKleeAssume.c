@@ -5,9 +5,9 @@
 // RUN: rm -rf %t.klee-out
 // RUN: not %klee --output-dir=%t.klee-out --exit-on-error %t.bc > %t.default-klee-assume.log 2>&1
 // RUN: FileCheck -input-file=%t.default-klee-assume.log -check-prefix=CHECK-DEFAULT-KLEE-ASSUME %s
-
-#include <stdio.h>
+#include "klee/klee.h"
 #include <assert.h>
+#include <stdio.h>
 
 int main() {
   int x = klee_int("x");
@@ -26,5 +26,6 @@ int main() {
 
 // CHECK-SILENT-KLEE-ASSUME: KLEE: output directory is "{{.+}}"
 // CHECK-SILENT-KLEE-ASSUME: KLEE: done: total instructions = {{[0-9]+}}
-// CHECK-SILENT-KLEE-ASSUME: KLEE: done: completed paths = 2
+// CHECK-SILENT-KLEE-ASSUME: KLEE: done: completed paths = 1
+// CHECK-SILENT-KLEE-ASSUME: KLEE: done: partially completed paths = 1
 // CHECK-SILENT-KLEE-ASSUME: KLEE: done: generated tests = 1

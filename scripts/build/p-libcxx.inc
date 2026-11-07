@@ -10,11 +10,7 @@ download_libcxx() {
   [[ -f "${LIBCXX_SRC}/.src_checked_out" ]] && return 0
 
   local LLVM_VERSION_MAJOR="${LLVM_VERSION/.*/}"
-
-  local version=""
-  [[ "${LLVM_VERSION_MAJOR}" -le 3 ]] && version="release/${LLVM_VERSION}.x"
-  [[ "${LLVM_VERSION_MAJOR}" -ge 4 ]] && version="release/${LLVM_VERSION_MAJOR}.x"
-
+  local version="release/${LLVM_VERSION_MAJOR}.x"
 
   git clone --single-branch --branch "${version}" --depth 1 "https://github.com/llvm/llvm-project.git" "${LIBCXX_SRC}"
 
@@ -24,10 +20,6 @@ download_libcxx() {
      patch -p1 --follow-symlinks -i "${DIR}/patches/libcxx${LLVM_VERSION_SHORT}.patch" || return 1
   fi
 
-  # Prepare LLVM subprojects for older LLVM versions
-  cd "${LIBCXX_SRC}/llvm/projects"
-  ln -s ../../libcxx .
-  ln -s ../../libcxxabi .
 
   touch "${LIBCXX_SRC}/.src_checked_out" 
 }
@@ -38,7 +30,6 @@ build_libcxx() {
   local LLVM_VERSION_MAJOR="${LLVM_VERSION/.*/}"
 
   local cmake_flags=(
-   "-DLLVM_ENABLE_PROJECTS=libcxx;libcxxabi"
    "-DLLVM_ENABLE_THREADS:BOOL=OFF"
    "-DLIBCXX_ENABLE_THREADS:BOOL=OFF"
    "-DLIBCXX_ENABLE_SHARED:BOOL=ON"
@@ -47,6 +38,14 @@ build_libcxx() {
    "-DCMAKE_INSTALL_PREFIX=${LIBCXX_INSTALL}"
   )
 
+  if [[ "${LLVM_VERSION_SHORT}" -ge "170" ]]; then
+     cmake_flags+=("-DLLVM_ENABLE_RUNTIMES=libcxx;libcxxabi;libunwind")
+     cmake_flags+=("-DLIBCXXABI_USE_LLVM_UNWINDER:BOOL=ON")
+  else
+     cmake_flags+=("-DLLVM_ENABLE_RUNTIMES=libcxx;libcxxabi")
+  fi
+  cmake_flags+=("-DLLVM_ENABLE_PROJECTS=")
+  cmake_flags+=("-DLLVM_ENABLE_PROJECTS_USED:BOOL=ON")
   # Static ABI libraries are not supported under OS X
   if [[ "${OS}" == "osx" ]]; then
     cmake_flags+=("-DLIBCXX_ENABLE_STATIC_ABI_LIBRARY:BOOL=OFF")
@@ -61,7 +60,7 @@ build_libcxx() {
     export LLVM_COMPILER_PATH="$(dirname "${BITCODE_CC}")"
 
     cmake "${cmake_flags[@]}" "${LIBCXX_SRC}/llvm"
-    make cxx
+   make runtimes "-j$(nproc)" || make runtimes || return 1
   )
 }
 
@@ -73,20 +72,17 @@ install_libcxx() {
     export LLVM_COMPILER=clang
     export LLVM_COMPILER_PATH="$(dirname "${BITCODE_CC}")"
 
-    cd "${LIBCXX_BUILD}/projects"
-    make install
-
+    local LLVM_VERSION_MAJOR="${LLVM_VERSION/.*/}"
     local libraries
 
+    cd "${LIBCXX_BUILD}/runtimes" || return 1
+    make install || return 1
     if [[ "${OS}" == "osx" ]]; then
-      libraries=("${LIBCXX_INSTALL}"/lib/lib*.dylib)
+        libraries=("${LIBCXX_INSTALL}"/lib/*/lib*.dylib)
     else
-      libraries=("${LIBCXX_INSTALL}"/lib/lib*.so)
+        libraries=("${LIBCXX_INSTALL}"/lib/*/lib*.so)
     fi
-
-    local LLVM_VERSION_MAJOR="${LLVM_VERSION/.*/}"
-    [[ "${LLVM_VERSION_MAJOR}" -ge 6 ]] && libraries+=("${LIBCXX_INSTALL}"/lib/lib*.a)
-
+    libraries+=("${LIBCXX_INSTALL}"/lib/*/lib*.a)
 
     for p in "${libraries[@]}" ; do
       extract-bc "$p"
@@ -115,6 +111,7 @@ get_build_artifacts_libcxx() {
   (
     setup_build_variables_libcxx
     echo "${LIBCXX_INSTALL}"
+    echo "${LIBCXX_SRC}"
   )
 }
 

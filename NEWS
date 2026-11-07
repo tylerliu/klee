@@ -1,9 +1,195 @@
+KLEE 3.3, 15 October 2026
+=========================
+
+Incorporating changes from 24 December 2025 to 15 October 2026.
+Maintainers during this time span: @ccadar
+Documentation at https://klee-se.org/releases/docs/v3.3
+
+== Major features and important changes ==
+- New KLEE Web version (@FinnLeh, @YiLai-qed)
+- Execute unsupported intrinsics via external calls (@operasfantom)
+
+== LLVM support ==
+- Current recommended version is LLVM 18
+- Added full support for LLVM 17-19 (@ccadar)
+- Removed support for LLVM < 15 (@ccadar)
+- KLEE 3.3 will be the last version with support for LLVM 15
+
+== Options, scripts and KLEE intrinsics added, changed or removed ==
+- Initialised the struct stats of symbolic files (A, B, ...) to fixed sane defaults. In particular, symbolic files are now regular files for which we have read and write permissions (@ccadar)
+- Added support for the llvm.load.relative intrinsic (@ccadar)
+- Added support for the llvm.ptrmask intrinsic (@ccadar)
+- Improved support for the llvm.load.relative intrinsic (@ccadar)
+
+== Other changes ==
+- Add support for the new pass manager of LLVM 17+ (@ccadar)
+- Add UBSan support for the (LLVM 17+) function type mismatch handler ABI (@operasfantom)
+- Enforced fd access mode checks for sym-file read/write operations (@dino-fan777)
+- Moved FreeBSD CI from Cirrus CI to GitHub Actions (@arrowd)
+- Fix a crash when runFunctionAsMain() is invoked multiple times, particularly when replaying multiple .ktest files (@nokitoino)
+- Recompute GEP indices instead of accumulating them across runs (@nokitoino)
+- Fixed permission checks in the POSIX runtime (@ccadar)
+- Fixed dangling pointer in utimes() for symbolic files when the second argument is NULL (@fkil)
+- Improvements to KLEE's freestanding library (@ccadar)
+- Fixed issue with leaking solver shared memory segments (@ccadar)
+- Added a UBSan tutorial (@5467845)
+- Smaller refactorings, fixes and improvements, test cases, maintenance, comments, web version, website, etc. (@12300001111, @251, @arrowd, @ccadar, @danielschemmel, @davidtr1037, @dependabot, @foxtran, @jbuening, @operasfantom)
+
+
+KLEE 3.2, 23 December 2025
+==========================
+
+Incorporating changes from 1 March 2024 to 23 December 2025.
+Maintainers during this time span: @ccadar, @MartinNowack, @251, @danielschemmel
+Documentation at https://klee-se.org/releases/docs/v3.2
+
+== Major features and important changes ==
+- KLEE acquired a new domain name: klee-se.org
+- Added an option to generate XML test cases (@misonijnik)
+- Improved the freestanding runtime (@mrexodia)
+- Fixed support for concrete objects > 2^32 bytes (@ccadar)
+
+== LLVM support ==
+- Current recommended version is LLVM 16
+- Added partial support for LLVM 17-19 (@mrexodia)
+- Removed support for LLVM < 13 (@ccadar)
+- KLEE 3.2 will be the last version with support for LLVM <15
+
+== Options, scripts and KLEE intrinsics added, changed or removed ==
+- Renamed --ignore-solver-failures to --ignore-stp-failures (@ccadar)
+
+== Other changes ==
+- Added functions for comparing versions to build scripts (@ccadar)
+- Added handler for _Exit (@fwc)
+- Reorganised tests: (@ccadar)
+- Disallow symbolic objects > 2^32 bytes, which were previously handled incorrectly (@ccadar)
+- Smaller refactorings, fixes and improvements, test cases, maintenance, comments, web version, website, etc. (@251, @ccadar, @danielschemmel, @dependabot, @homyhost, @jamacku, @jbuening, @MartinNowack, @ricardaxel, @sp1ff, @sreeshmaheshwar, @xokdvium)
+
+
+KLEE 3.1, 29 February 2024
+==========================
+
+Incorporating changes from 8 June 2023 to 29 February 2024.
+Maintainers during this time span: @ccadar, @MartinNowack, @251.
+Documentation at https://klee-se.org/releases/docs/v3.1
+
+== Major features and important changes ==
+- New execution tree implementation and klee-exec-tree tool (@251)
+- KDAlloc is now the default allocator in KLEE (KDAlloc was introduced in KLEE 3.0)
+- Resolve memory reads/writes to single objects in more cases (@tkuchta)
+- Concretize values based on seeds when available (@ccadar)
+- Fixed some interactions with external code (@ccadar, @MartinNowack, mishok2503)
+
+== LLVM support ==
+- Current recommended version is still LLVM 13
+- Added support for LLVM 15 and 16 (@MartinNowack)
+- Removed support for LLVM <11 (@danielschemmel)
+- KLEE 3.1 will be the last version with support for LLVM <13
+
+== Options, scripts and KLEE intrinsics added, changed or removed ==
+- New klee-exec-tree tool (@251)
+- New --write-exec-tree and --exec-tree-batch-size options (@251)
+- Renamed --compress-process-tree to --compress-exec-tree (@ccadar)
+- PTree is now called ExecutionTree in the code (@ccadar)
+- KDAlloc (--kdalloc) is now enabled by default (@ccadar)
+- Replaced --suppress-external-warnings and --all-external-warnings with --external-call-warnings=none|once-per-function|all (@ccadar)
+- Keep in the KLEE and Kleaver help menus only the KLEE/Kleaver option categories (@ccadar)
+- Removed --cex-cache-exp, a broken experimental optimisation for validity (@ccadar)
+- Removed --zero-seed-extension, and merge it with --allow-seed-extension (@ccadar)
+
+== Other changes ==
+- Improvements to KDAlloc (@danielschemmel)
+- Avoid generating array names in solver builders that could accidently collide (@MartinNowack)
+- Function has_permission in the POSIX model now returns permission error a single time in symbolic execution mode (@ccadar)
+- Smaller refactorings, fixes and improvements, test cases, maintenance, comments, web version, website, etc. (@251, @ccadar, @dependabot, @danielschemmel, @davidtr1037, @jbuening, @marco6, @MartinNowack, @McSinyx, @sp1ff)
+
+
+KLEE 3.0, 7 June 2023
+=====================
+
+Incorporating changes from 8 April 2022 to 7 June 2023.
+Maintainers during this time span: @ccadar, @MartinNowack, @251.
+(@251 joined as a new maintainer during 2022).
+Documentation at https://klee-se.org/releases/docs/v3.0
+
+== Major features ==
+- Added support for the KDAlloc memory allocator, which enables KLEE to more robustly detect use-after-free errors, improves the detection of buffer overflows, and provides deterministic memory allocation (@danielschemmel, based on https://srg.doc.ic.ac.uk/publications/22-kdalloc-ecoop.html)
+- Enabled KLEE to support UBSan-added checks (@operasfantom)
+- Added support for concrete inline assembly, which is now handled as an external call (@mishok2503)
+
+== LLVM support ==
+- Current recommended version is LLVM 13
+- Added support for LLVM 14 (@lzaoral)
+- Removed support for LLVM <9
+- KLEE 3.0 will be the last version with support for LLVM <11
+
+== Options, scripts and KLEE intrinsics added, changed or removed ==
+- Renamed gen-bout to ktest-gen, and gen-random-bout to ktest-randgen (@ccadar)
+- Added option --stp-sat-solver for selecting the SAT solver used by STP (@251)
+- Added many more runtime statistics that can be inspected with klee-stats, and renamed several of them (@251)
+- Removed unused model_version from the tests generated when the POSIX runtime is enabled (@ccadar)
+- Removed unused option --replay-keep-symbolic (@251)
+- Added support for the @llvm.f{ma,muladd}.f* intrinsics (@lzaoral)
+- Allow UcLibc to support a runtime option rather than a compile-time one (@arrowd)
+- Added support for llvm.experimental.noalias.scope.decl (@operasfantom)
+- Modified names of SMT variables to use underscores instead of dashes, e.g., A_data instead of A-data (@ccadar)
+
+== Other changes ==
+- Overhaul of KLEE's CI and build scripts (@MartinNowack, @jbuening)
+- Introduce separate categories for different kinds of undefined behavior (@operasfantom)
+- Support arguments of width 128, 256 and 512 bits for external calls (@operasfantom)
+- Added check for nonnull path APIs in fstatat (@251, @jbuening)
+- Fixed a bug in KLEE libc's implementation of strcmp, where characters were not compared as unsigned (@ccadar)
+- Added support for Differential ShellCheck (@jamacku)
+- Fixed a bug triggered when --entry-point and --libc=uclibc are used together (@ccadar)
+- Fixed a bug with --use-batching-search ignoring disabled time budget (@jbuening)
+- Smaller refactorings, fixes and improvements, test cases, maintenance, comments, web version, website, etc. (@251, @andronat, @arrowd, @ccadar, @danielschemmel, @dependabot, @fwc, @jamesjer, @jbuening, @jryans, @kt218, @lzaoral, @m-davis, @MartinNowack, @McSinyx, @mishok2503, @operasfantom, @prncoprs, @rriley, @rshariffdeen, @sava-cska, @ZHYfeng)
+
+
+KLEE 2.3, 4 April 2022
+======================
+
+Incorporating changes from 8 December 2020 to 4 April 2022.
+Maintainers during this time span: @ccadar and @MartinNowack
+Documentation at https://klee-se.org/releases/docs/v2.3
+
+== LLVM support ==
+- Current recommended version is LLVM 11
+- Added support for LLVM 12 and 13 (@lzaoral)
+- Removed support for LLVM <6
+- KLEE 2.3 will be the last version with support for LLVM <9
+
+== Options, scripts and KLEE intrinsics added, changed or removed ==
+- Added --max-static-pct-check-delay to specify the number of forks after which the --max-static-*-pct checks are enforced (@ccadar)
+- In klee-stats, added --print-columns to print user-defined columns, e.g. --print-columns 'Path,Instrs,Time(s)' (@251)
+- Disabled Doxygen generation by default; it can be enabled via CMake option ENABLE_DOXYGEN=ON
+
+== Other changes ==
+- Introduced termination categories and branch types (@251)
+- Added support for more recent versions of Google Test (@jbuening)
+- Fixed --prefer-cex, which was crashing in some cases (@TarasBereznyak)
+- Added support for executing 32bit code, with some limitations (@lzaoral)
+- Improved exception handling (@jbuening)
+- Various improvements to klee-stats (@251)
+- Fixed UBSan reporting in the CI and fixed several errors reported by UBSan (@lzaoral)
+- Fixed path statistics with -dump-states-on-halt=false (@251)
+- Differentiate between partial and completed paths in the summary printed at the end (@251)
+- Improved determinism (@jbuening)
+- Added support for LLVM abs (except for the vector variants), llvm.roundeven and llvm.{s,u}{max,min} intrinsics (@lzaoral)
+- Fixed and improved model for getcwd (@251)
+- Fixed a silent concretization case in Executor::fork (@ccadar)
+- Added a large number of KLEE-related publications to the website (@251)
+- Fixed the memory usage computation on macOS (@ccadar)
+- Removed or updated obsolete Doxygen options and added Doxygen generation to the CI (@ccadar)
+- Smaller refactorings, fixes and improvements, test cases, maintenance, comments, web version, website, etc. (@251, @aesophor, @arrowd, @bathooman,  @ccadar, @carlocab, @davidtr1037, @dependabot, @futile, @iangneal, @jbuening, @jirislaby, @jiseongg, @jordr, @lzaoral, @MartinNowack, @numinit, @operasfantom, @prncoprs)
+
+
 KLEE 2.2, 7 December 2020
 =========================
 
 Incorporating changes from 4 March 2020 to 7 December 2020.
 Maintainers during this time span: @ccadar and @MartinNowack
-Documentation at http://klee.github.io/releases/docs/v2.2
+Documentation at https://klee-se.org/releases/docs/v2.2
 
 == Major features ==
 - Added support for C++ exceptions (@corrodedHash, @futile, @jbuening)
@@ -65,7 +251,7 @@ KLEE 2.1, 3 March 2020
 =======================
 Incorporating changes from 20 March 2019 to 3 March 2020.
 Maintainers during this time span: @ccadar and @MartinNowack
-Documentation at http://klee.github.io/releases/docs/v2.1
+Documentation at https://klee-se.org/releases/docs/v2.1
 
 == Major features ==
 - New container-based architecture for KLEE Web (@Denis-Gavrielov, @andronat)
@@ -112,7 +298,7 @@ KLEE 2.0, 19 March 2019
 ========================
 Incorporating changes from 22 July 2017 to 19 March 2019
 Maintainers during this time span: @AndreaMattavelli, @ccadar, @delcypher, @MartinNowack
-Documentation at http://klee.github.io/releases/docs/v2.0
+Documentation at https://klee-se.org/releases/docs/v2.0
 
 == Major features ==
 - Added support for KLEE array optimizations from ISSTA'17 paper "Accelerating Array Constraints in Symbolic Execution" (@AndreaMattavelli, @MartinNowack, @ccadar)
@@ -204,7 +390,7 @@ comments, web version, website, etc. (@andronat, @251, @andreamattavelli, @ccada
 KLEE 1.4.0, 21 July 2017
 ========================
 (Incorporating changes from 4 November 2016 up to and including 21 July 2017)
-Documentation at http://klee.github.io/releases/docs/v1.4.0/
+Documentation at https://klee-se.org/releases/docs/v1.4.0/
 
 This will be the last version supporting LLVM 2.9 and the autoconf build system.
 
@@ -259,7 +445,7 @@ KLEE 1.3.0, 30 November 2016
 * Improved determinism of KLEE, an essential feature for experiments involving KLEE (@MartinNowack)
 * KLEE-web has been improved and refactored, and now available at http://klee.doc.ic.ac.uk/ (@giacomoguerci, @helicopter88, @andronat, @ccadar, based on work by @ains, @ben-chin, @ilovepjs, @JamesDavidCarr, Kaho Sato, Conrad Watt, @ccadar)
 * Renamed --replay-out to --replay-ktest and --replay-out-dir to replay-ktest-dir (@delcypher)
-* Split creation of symbolic files and stdin in two distinct options, documented at http://klee.github.io/docs/options/#symbolic-environment (@andreamattavelli)
+* Split creation of symbolic files and stdin in two distinct options, documented at https://klee-se.org/docs/options/#symbolic-environment (@andreamattavelli)
 * Support for logging queries before invoking the solver via --log-partial-queries-early, useful for debugging solver crashes (@MartinNowack)
 * Added --stats-write-after-instructions and --istats-write-after-instructions to update each statistic after n steps (@MartinNowack)
 * Added --compress-log and --debug-compress-instructions to gzip-compress logs (@MartinNowack)

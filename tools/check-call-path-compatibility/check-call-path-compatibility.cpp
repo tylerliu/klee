@@ -197,11 +197,11 @@ int main(int argc, char **argv, char **envp) {
   call_path_t *sender_call_path = load_call_path(SenderCallPathFile);
   call_path_t *receiver_call_path = load_call_path(ReceiverCallPathFile);
 
-  klee::Solver *solver = klee::createCoreSolver(klee::Z3_SOLVER);
+  auto solver = klee::createCoreSolver(klee::Z3_SOLVER);
   assert(solver);
-  solver = createCexCachingSolver(solver);
-  solver = createCachingSolver(solver);
-  solver = createIndependentSolver(solver);
+  solver = createCexCachingSolver(std::move(solver));
+  solver = createCachingSolver(std::move(solver));
+  solver = createIndependentSolver(std::move(solver));
 
   klee::ExprBuilder *exprBuilder = klee::createDefaultExprBuilder();
 

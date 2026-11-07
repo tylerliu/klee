@@ -8,22 +8,28 @@ coverage_setup() {
   local build_dir="$1"
   # Zero coverage for any file, e.g. previous tests
   lcov -q --directory "${build_dir}" --no-external --zerocounters
-  # Create a baseline by capturing any file used for compilation, no execution yet
-  lcov -q --rc lcov_branch_coverage=1 --directory "${build_dir}" --base-directory="${KLEE_SRC}" --no-external --capture --initial --output-file coverage_base.info
-  lcov -q --rc lcov_branch_coverage=1 --remove coverage_base.info 'test/*' --output-file coverage_base.info
-  lcov -q --rc lcov_branch_coverage=1 --remove coverage_base.info 'unittests/*' --output-file coverage_base.info
+  # Create the baseline before execution.
+  # --directory: Capture target directories only, excluding CMake
+  #   compiler-identification probes under the top-level CMakeFiles directory.
+  # --exclude: Exclude test/ and unittests/ during capture to avoid gcov
+  #   function-range mismatches in GoogleTest macros.
+  # --ignore-errors: Allow unused exclusion patterns because system-test
+  # sources may have no coverage records.
+  lcov -q --rc lcov_branch_coverage=1 --directory "${build_dir}/lib" --directory "${build_dir}/runtime" --directory "${build_dir}/tools" --directory "${build_dir}/unittests" --base-directory="${KLEE_SRC}" --no-external --exclude "${KLEE_SRC}/test/*" --exclude "${KLEE_SRC}/unittests/*" --ignore-errors unused --capture --initial --output-file coverage_base.info
 }
 
 coverage_update() {
   tags="$2"
   codecov_suffix=(${tags// /})
   build_dir="$1"
-  # Create report
+  # Some target directories have no counters after unit tests. Allow those
+  # directories to be empty, but require source coverage in the final report.
   # (NOTE: "--rc lcov_branch_coverage=1" needs to be added in all calls, otherwise branch coverage gets dropped)
-  lcov -q --rc lcov_branch_coverage=1 --directory "${build_dir}" --base-directory="${KLEE_SRC}" --no-external --capture --output-file coverage.info
-  # Exclude uninteresting coverage goals (LLVM, googletest, and KLEE system and unit tests)
-  lcov -q --rc lcov_branch_coverage=1 --remove coverage.info 'test/*' --output-file coverage.info
-  lcov -q --rc lcov_branch_coverage=1 --remove coverage.info 'unittests/*' --output-file coverage.info
+  lcov -q --rc lcov_branch_coverage=1 --directory "${build_dir}/lib" --directory "${build_dir}/runtime" --directory "${build_dir}/tools" --directory "${build_dir}/unittests" --base-directory="${KLEE_SRC}" --no-external --exclude "${KLEE_SRC}/test/*" --exclude "${KLEE_SRC}/unittests/*" --ignore-errors unused,empty --capture --output-file coverage.info
+  if ! grep -q '^SF:' coverage.info; then
+    echo "No source coverage captured in coverage.info" >&2
+    return 1
+  fi
   # Combine baseline and measured coverage
   lcov -q --rc lcov_branch_coverage=1 -a coverage_base.info -a coverage.info -o coverage_all.info."${codecov_suffix}"
   # Debug info
@@ -36,6 +42,16 @@ run_tests() {
 
   # TODO change to pinpoint specific directory
   cd "${build_dir}"
+
+  # Remove klee from PATH. The goal is that for test cases klee is referenced via `%klee` not accidently being picked up via PATH
+  if which klee; then
+    full_path_to_klee="$(which klee)"
+    target_directory="$(dirname "${full_path_to_klee}")"
+    PATH=${PATH/$target_directory/}
+    if which klee; then
+      return 1 # should not happen
+    fi
+  fi
 
   ###############################################################################
   # Unit tests
@@ -62,6 +78,7 @@ run_tests() {
   
   # If metaSMT is the only solver, then rerun lit tests with non-default metaSMT backends
   if [ "X${SOLVERS}" == "XmetaSMT" ]; then
+    export PATH="${HOME}/.venvs/klee/bin:${PATH}"
     available_metasmt_backends="btor stp z3 yices2 cvc4"
     for backend in $available_metasmt_backends; do
       if [ "X${METASMT_DEFAULT}" != "X$backend" ]; then
@@ -86,7 +103,7 @@ function upload_coverage() {
 }
 
 function run_docker() {
- docker_arguments=(docker run -u root --cap-add SYS_PTRACE -t)
+ docker_arguments=(docker run -u root --cap-add SYS_PTRACE -t -e SOLVERS -e METASMT_DEFAULT)
  script_arguments=("--debug" '"/tmp/klee_build"*')
  if [[ "${COVERAGE}" -eq 1 ]]; then
    script_arguments+=("--coverage")

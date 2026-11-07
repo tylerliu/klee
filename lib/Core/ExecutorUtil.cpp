@@ -17,6 +17,9 @@
 #include "klee/Solver/Solver.h"
 #include "klee/Support/ErrorHandling.h"
 
+#include "klee/Support/CompilerWarning.h"
+DISABLE_WARNING_PUSH
+DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
@@ -25,6 +28,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/Support/raw_ostream.h"
+DISABLE_WARNING_POP
 
 #include <cassert>
 
@@ -214,11 +218,7 @@ namespace klee {
           continue;
 
         // Handle a struct index, which adds its field offset to the pointer.
-#if LLVM_VERSION_CODE >= LLVM_VERSION(4, 0)
         if (auto STy = ii.getStructTypeOrNull()) {
-#else
-        if (StructType *STy = dyn_cast<StructType>(*ii)) {
-#endif
           unsigned ElementIdx = indexOp->getZExtValue();
           const StructLayout *SL = kmodule->targetData->getStructLayout(STy);
           base = base->Add(
@@ -237,7 +237,10 @@ namespace klee {
       }
       return base;
     }
-      
+
+// NOTE: In more recent LLVM versions ConstantExpr is getting more limited:
+// https://discourse.llvm.org/t/rfc-remove-most-constant-expressions/63179
+#if LLVM_VERSION_MAJOR < 19
     case Instruction::ICmp: {
       switch(ce->getPredicate()) {
       default: assert(0 && "unhandled ICmp predicate");
@@ -253,6 +256,7 @@ namespace klee {
       case ICmpInst::ICMP_SLE: return op1->Sle(op2);
       }
     }
+#endif
 
     case Instruction::Select:
       return op1->isTrue() ? op2 : op3;

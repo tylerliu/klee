@@ -18,22 +18,20 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <limits.h>
 
 #include <sys/stat.h>
 #include <sys/wait.h>
 
-#ifdef HAVE_PTY_H
-#include <pty.h>
-#elif defined(HAVE_UTIL_H)
-#include <util.h>
-#elif defined(HAVE_LIBUTIL_H)
-#include <libutil.h>
-#endif
-
 #if defined(__APPLE__)
+#include <util.h>
 #include <sys/termios.h>
+#elif defined(__FreeBSD__)
+#include <libutil.h>
+#include <termios.h>
 #else
 #include <termios.h>
+#include <pty.h>
 #endif
 
 static void create_file(int target_fd,
@@ -49,10 +47,15 @@ static void check_file(int index, exe_disk_file_t *dfile);
 static int create_link(const char *fname,
                        exe_disk_file_t *dfile,
                        const char *tmpdir) {
-  char buf[64];
+  char buf[PATH_MAX];
   struct stat64 *s = dfile->stat;
 
-  snprintf(buf, sizeof(buf), "%s.lnk", fname);
+  // make sure that the .lnk suffix is not truncated
+  if (snprintf(buf, sizeof buf, "%s.lnk", fname) >= PATH_MAX) {
+    fputs("create_link: fname is too long for additional .lnk suffix", stderr);
+    return -1;
+  }
+
   s->st_mode = (s->st_mode & ~S_IFMT) | S_IFREG;
   create_file(-1, buf, dfile, tmpdir);
 
@@ -167,6 +170,7 @@ static int create_char_dev(const char *fname, exe_disk_file_t *dfile,
         struct termios mode;
 
         int res = tcgetattr(aslave, &mode);
+        (void)res;
         assert(!res);
         mode.c_iflag = IGNBRK;
 #if defined(__APPLE__) || defined(__FreeBSD__)
@@ -178,6 +182,7 @@ static int create_char_dev(const char *fname, exe_disk_file_t *dfile,
         mode.c_cc[VMIN] = 1;
         mode.c_cc[VTIME] = 0;
         res = tcsetattr(aslave, TCSANOW, &mode);
+        (void)res;
         assert(res == 0);
       }
 
@@ -285,7 +290,7 @@ static int create_pipe(const char *fname, exe_disk_file_t *dfile,
   }
 }
 
-
+int futimes(int fd, const struct timeval tv[2]);
 static int create_reg_file(const char *fname, exe_disk_file_t *dfile,
                            const char *tmpdir) {
   struct stat64 *s = dfile->stat;
@@ -296,7 +301,7 @@ static int create_reg_file(const char *fname, exe_disk_file_t *dfile,
   fprintf(stderr, "KLEE-REPLAY: NOTE: Creating file %s of length %d\n", fname, flen);
 
   // Open in RDWR just in case we have to end up using this fd.
-  if (__exe_env.version == 0 && mode == 0)
+  if (mode == 0)
     mode = 0644;
 
   int fd = open(fname, O_CREAT | O_RDWR, mode);
@@ -390,6 +395,7 @@ static void create_file(int target_fd,
 
 char replay_dir[] = "/tmp/klee-replay-XXXXXX";
 
+char *mkdtemp(char *template);
 void replay_create_files(exe_file_system_t *exe_fs) {
   unsigned k;
 
@@ -458,16 +464,31 @@ static void check_file(int index, exe_disk_file_t *dfile) {
   switch (index) {
   case __STDIN:
     strcpy(name, "stdin");
+#if defined(__has_feature)
+#if __has_feature(memory_sanitizer)
+    memset(&s, 0, sizeof(struct stat));
+#endif
+#endif
     res = fstat(0, &s);
     break;
   case __STDOUT:
     strcpy(name, "stdout");
+#if defined(__has_feature)
+#if __has_feature(memory_sanitizer)
+    memset(&s, 0, sizeof(struct stat));
+#endif
+#endif
     res = fstat(1, &s);
     break;
   default:
     name[0] = 'A' + index;
     name[1] = '\0';
     snprintf(fullname, sizeof(fullname), "%s/%s", replay_dir, name);
+#if defined(__has_feature)
+#if __has_feature(memory_sanitizer)
+    memset(&s, 0, sizeof(struct stat));
+#endif
+#endif
     res = stat(fullname, &s);
 
     break;

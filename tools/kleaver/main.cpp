@@ -29,12 +29,11 @@
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Signals.h"
 
 #include <sys/stat.h>
 #include <unistd.h>
-
-
-#include "llvm/Support/Signals.h"
+#include <utility>
 
 using namespace llvm;
 using namespace klee;
@@ -56,8 +55,7 @@ static llvm::cl::opt<ToolActions> ToolAction(
                      clEnumValN(PrintAST, "print-ast",
                                 "Print parsed AST nodes from the input file."),
                      clEnumValN(Evaluate, "evaluate",
-                                "Evaluate parsed AST nodes from the input file.")
-                         KLEE_LLVM_CL_VAL_END),
+                                "Evaluate parsed AST nodes from the input file.")),
     llvm::cl::cat(klee::SolvingCat));
 
 enum BuilderKinds {
@@ -74,8 +72,7 @@ static llvm::cl::opt<BuilderKinds> BuilderKind(
                      clEnumValN(ConstantFoldingBuilder, "constant-folding",
                                 "Fold constant expressions."),
                      clEnumValN(SimplifyingBuilder, "simplify",
-                                "Fold constants and simplify expressions.")
-                         KLEE_LLVM_CL_VAL_END),
+                                "Fold constants and simplify expressions.")),
     llvm::cl::cat(klee::ExprCat));
 
 llvm::cl::opt<std::string> DirectoryToWriteQueryLogs(
@@ -202,7 +199,7 @@ static bool EvaluateInputAST(const char *Filename,
   if (!success)
     return false;
 
-  Solver *coreSolver = klee::createCoreSolver(CoreSolverToUse);
+  std::unique_ptr<Solver> coreSolver = klee::createCoreSolver(CoreSolverToUse);
 
   if (CoreSolverToUse != DUMMY_SOLVER) {
     const time::Span maxCoreSolverTime(MaxCoreSolverTime);
@@ -211,11 +208,11 @@ static bool EvaluateInputAST(const char *Filename,
     }
   }
 
-  Solver *S = constructSolverChain(coreSolver,
-                                   getQueryLogPath(ALL_QUERIES_SMT2_FILE_NAME),
-                                   getQueryLogPath(SOLVER_QUERIES_SMT2_FILE_NAME),
-                                   getQueryLogPath(ALL_QUERIES_KQUERY_FILE_NAME),
-                                   getQueryLogPath(SOLVER_QUERIES_KQUERY_FILE_NAME));
+  std::unique_ptr<Solver> S = constructSolverChain(
+      std::move(coreSolver), getQueryLogPath(ALL_QUERIES_SMT2_FILE_NAME),
+      getQueryLogPath(SOLVER_QUERIES_SMT2_FILE_NAME),
+      getQueryLogPath(ALL_QUERIES_KQUERY_FILE_NAME),
+      getQueryLogPath(SOLVER_QUERIES_KQUERY_FILE_NAME));
 
   unsigned Index = 0;
   for (std::vector<Decl*>::iterator it = Decls.begin(),
@@ -296,9 +293,7 @@ static bool EvaluateInputAST(const char *Filename,
     delete *it;
   delete P;
 
-  delete S;
-
-  if (uint64_t queries = *theStatisticManager->getStatisticByName("Queries")) {
+  if (uint64_t queries = *theStatisticManager->getStatisticByName("SolverQueries")) {
     llvm::outs()
       << "--\n"
       << "total queries = " << queries << '\n'
@@ -387,16 +382,11 @@ static bool printInputAsSMTLIBv2(const char *Filename,
 }
 
 int main(int argc, char **argv) {
-
-  KCommandLine::HideOptions(llvm::cl::GeneralCategory);
+  KCommandLine::KeepOnlyCategories({&ExprCat, &SolvingCat});
 
   bool success = true;
 
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 9)
   llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
-#else
-  llvm::sys::PrintStackTraceOnErrorSignal();
-#endif
   llvm::cl::SetVersionPrinter(klee::printVersion);
   llvm::cl::ParseCommandLineOptions(argc, argv);
 

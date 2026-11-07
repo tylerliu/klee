@@ -8,9 +8,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Support/ErrorHandling.h"
+#include "klee/Config/Version.h"
+#include "klee/Support/CompilerWarning.h"
+DISABLE_WARNING_PUSH
+DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/CommandLine.h"
+DISABLE_WARNING_POP
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -48,10 +53,11 @@ static bool shouldSetColor(const char *pfx, const char *msg,
   if (pfx && strcmp(pfx, prefixToSearchFor) == 0)
     return true;
 
-  if (llvm::StringRef(msg).startswith(prefixToSearchFor))
-    return true;
-
-  return false;
+#if LLVM_VERSION_CODE >= LLVM_VERSION(16, 0)
+  return llvm::StringRef(msg).starts_with(prefixToSearchFor);
+#else
+  return llvm::StringRef(msg).startswith(prefixToSearchFor);
+#endif
 }
 
 static void klee_vfmessage(FILE *fp, const char *pfx, const char *msg,

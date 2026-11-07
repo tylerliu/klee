@@ -1,0 +1,701 @@
+{
+  "format": 1,
+  "donor": "573acbe5080bc3d3b1860454d345f049e270a491",
+  "upstream": "74f49f1d243f0e1692a00ac688a7b805b37c5646",
+  "merge_base": "5719d2803e93252e5d4613f43afc7db0d72332f1",
+  "tested_port_commit": "4053c7a82c60a2bb528690de1cd4955716042444",
+  "patch_sha256": "c08343ca72cfe67feb9e0293913d0f7cd1e3dd3eeb99570fcef948e9836757fe",
+  "tested_docker_image": "sha256:d19d8517e36bcee8f4fe5455ad5b7d897e62fb73a9d78ae7d99c40cda5d07c4b",
+  "metadata_paths": [
+    "PIX-PORT.md",
+    "docs/pix-port-audit/"
+  ],
+  "conflicts": [
+    {
+      "path": ".github/workflows/build.yaml",
+      "base": {
+        "mode": "100644",
+        "blob": "15bcbe7d42a8e4b7589c4c7d5d9dc6f733ea18ba"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "5843468a677d38ec8009dea879c1dbd63776b4b1"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "6cc06fee4f71acce6f20154c91bd6538564fc1b9"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "6cc06fee4f71acce6f20154c91bd6538564fc1b9"
+      },
+      "resolution": "upstream"
+    },
+    {
+      "path": ".travis.yml",
+      "base": {
+        "mode": "100644",
+        "blob": "2fc6508ac7db490315566acf31ffb2ba8c72a4da"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "e5511acd1a7100a74c7e2fc1ee0e75bee39b57fd"
+      },
+      "upstream": null,
+      "accepted": null,
+      "resolution": "upstream"
+    },
+    {
+      "path": "README.md",
+      "base": {
+        "mode": "100644",
+        "blob": "bbadb2427035c017c8f9f67129c4d990305dadb5"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "749d9c6d3b85c6e5ecd64fee96355745b24cb63e"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "196257fcbb33a963f7fe0d6245e2fb47c73bbc00"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "196257fcbb33a963f7fe0d6245e2fb47c73bbc00"
+      },
+      "resolution": "upstream"
+    },
+    {
+      "path": "include/klee/Module/KModule.h",
+      "base": {
+        "mode": "100644",
+        "blob": "9c24cb31fcc54a1b3c95b461df3481442e750908"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "9b6b70e976f3b21e5eaa5d5e91d4535edaa5e34e"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "8e9417532f8e5b4e0d8802b1dc0d6d4fccd7c4fa"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "7b5b66b0f1704b02f7f4682d9d1baa0579f3ac92"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "lib/Core/ExecutionState.cpp",
+      "base": {
+        "mode": "100644",
+        "blob": "47a3b3c60298a06a0fd90ff3bcc22d8ff3abbaad"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "adf58cf5b7d2d2a4b4158aa4b2e0566518b93f5b"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "cb8a3ceda2a148a6357bcddbbc50b0763d4d43ae"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "d1b7aa2a1a5a9b3a3ab324fd17a788b99f95056c"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "lib/Core/ExecutionState.h",
+      "base": {
+        "mode": "100644",
+        "blob": "f91790d57480e07269a0a51ca69bc3a7b9fee159"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "db889ce6928a7c396c3d6fc9d1156899c38c491e"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "0e28e04f00c006127c53bba2cccb5349e6fe7705"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "bf2a8e5d5463e0915fbe965301d702f5e25f9647"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "lib/Core/Executor.cpp",
+      "base": {
+        "mode": "100644",
+        "blob": "e3186bbf7a8e1ad6eeed84ceeeafce8dd34ea5d5"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "cdc9cca21486208b61792f904bbf973210414e96"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "eb7ade03a70de6dd4c6e71aeabadfc45a66b9575"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "5b5bcb9172fb3a88a836f1096bab3934a78e6797"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "lib/Core/Executor.h",
+      "base": {
+        "mode": "100644",
+        "blob": "1614a0f92707a5454458d07adcf14d88ee7f7e03"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "f1273ed276bf410594bc4fa6ab714dcb124b2fec"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "531e2658885837f9fa8b1f3eb489bbe04e4ba9af"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "854b60acb0c5f1eb9a97080307a04aed06561104"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "lib/Core/Memory.cpp",
+      "base": {
+        "mode": "100644",
+        "blob": "86b067013957eeea54ed126e89245033a9a9e34c"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "e22091cf3444174556581f21daff68b620e23f70"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "fec09b0d77e69137125e9e9616de1e58a85f8289"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "741e9f2d748da9e58a4d24ad6fddffb3532e860e"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "lib/Core/Memory.h",
+      "base": {
+        "mode": "100644",
+        "blob": "e88d5f55d5cf9893d30372ccb3d5bf13854dc1a9"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "54c87a144886b0de9d4b5c35a40f158dc79fc86f"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "14b18b7604900818fe39e36dc709a286cf780590"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "af6594434fdce2a8ab4e56846fc81aba65a70473"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "lib/Core/SpecialFunctionHandler.cpp",
+      "base": {
+        "mode": "100644",
+        "blob": "f101a085ad9dd932ecfba16c06a78e64d693bb3a"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "96288931cc139762ad175e014ccc961f69918e22"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "3e4f2c9d730f808c51ba575e62d784f2c252417c"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "d75edc4555c34d183b3dcd06cd2158c2c64b6982"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "lib/Core/SpecialFunctionHandler.h",
+      "base": {
+        "mode": "100644",
+        "blob": "3db650d7dcbbc3b31b255ae1d8e378b7e4062f15"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "f9d5ed2d8cb900e27f28fcbe26ef966264758a82"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "3fdbf8f82a4d097accd7ff87a18cf85c33f6aa9b"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "1c532bbeba398af6e03ddf08770747cc965c1c9c"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "lib/Module/IntrinsicCleaner.cpp",
+      "base": {
+        "mode": "100644",
+        "blob": "cd93b3ec579e3322f5b1303d75855e22a44d3df1"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "acc80a3986a201cfb19c3ac298b1dc2a3877212c"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "48a27287bf912d5943d471ff2bf07dc0c49ebcf0"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "bc2676bb87729324e7a0170d91d00a2c51a7c782"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "lib/Module/KModule.cpp",
+      "base": {
+        "mode": "100644",
+        "blob": "50bb28bbfdabdd33bf3cb51482175142eb4062a3"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "abcf6aa00a45346916cd6f11cb4e1a284b1cc67c"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "cb8b4539dca42dfe545e086e849c50a6dae24d70"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "c51c9880b472c75de83a7c5bba039a722709be26"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "scripts/build/p-klee-linux-ubuntu.inc",
+      "base": {
+        "mode": "100644",
+        "blob": "f5e6aed2a8878528e2bfa86abc9add19c43ee13f"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "0c73907f7d14d9fa03c86eb7a349bb9c5648cdc3"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "c4cacc2494ff6953a18d188a38da68ae10e71cc9"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "c4cacc2494ff6953a18d188a38da68ae10e71cc9"
+      },
+      "resolution": "upstream"
+    },
+    {
+      "path": "scripts/build/p-stp-linux-ubuntu.inc",
+      "base": {
+        "mode": "100644",
+        "blob": "f4030023c14f0ec893a81ce2560dbcfb5b0372ac"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "6a65f0576ec8b37e4bc5fd492c18d396fb1e35b9"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "5fdc0bed242aa5dfa3fa2d2cb6ea689f248901d1"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "5fdc0bed242aa5dfa3fa2d2cb6ea689f248901d1"
+      },
+      "resolution": "upstream"
+    },
+    {
+      "path": "test/Feature/ImpliedValue.c.failing",
+      "base": {
+        "mode": "100644",
+        "blob": "dd4d8f5571b49ac45de5cb1b613e4da096aa4f0c"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "e962aac76242ac6f44f4737abc25f2586b98d992"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "2673d69f15969480e48deabbb0c540e6b8879881"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "2673d69f15969480e48deabbb0c540e6b8879881"
+      },
+      "resolution": "upstream"
+    },
+    {
+      "path": "test/lit.cfg",
+      "base": {
+        "mode": "100644",
+        "blob": "53112bf9c0f120ebb7cec8ec1d0d7b982e1e3653"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "f6e5a7ab921f0aa354c3b8362c391bbadd9525cf"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "b0727665e8146ff7d1210253c4ac8026beafd32f"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "b0727665e8146ff7d1210253c4ac8026beafd32f"
+      },
+      "resolution": "upstream"
+    },
+    {
+      "path": "tools/klee/main.cpp",
+      "base": {
+        "mode": "100644",
+        "blob": "c1270b4621ee7abbeeaa735dbd3cc14d1735ad63"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "3c87bbc46c4a8ebeab5563552b6e2c2b9e54857c"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "1271456ff8307e7365047f213343ed5563967c94"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "d9e5105c3ce2698d32102380b347358b089af852"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "unittests/CMakeLists.txt",
+      "base": {
+        "mode": "100644",
+        "blob": "aff9d26ec8e17a79972ce26cda282449bf85066f"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "511511419ec63032eabb2d30831b3c5353b02d62"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "ba1bba20e22c69f4fb25a449bf39598e24be1aab"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "ba1bba20e22c69f4fb25a449bf39598e24be1aab"
+      },
+      "resolution": "upstream"
+    },
+    {
+      "path": "unittests/Solver/CMakeLists.txt",
+      "base": {
+        "mode": "100644",
+        "blob": "c3dc63b64b9306e6a6563852a6603d813d749a89"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "f31a94b46b4805e21b35e196dbac51852a6f778e"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "c3cd357cbcdfba51f35918fb3b51305c6e8dd445"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "c3cd357cbcdfba51f35918fb3b51305c6e8dd445"
+      },
+      "resolution": "upstream"
+    },
+    {
+      "path": "unittests/TestMain.cpp",
+      "base": {
+        "mode": "100644",
+        "blob": "9a64a4afef9bd70e2d4128a3bfbd8be51e28ec28"
+      },
+      "donor": {
+        "mode": "100644",
+        "blob": "408cb2a2f6b0e7b5a760850807432a3d38641b12"
+      },
+      "upstream": {
+        "mode": "100644",
+        "blob": "9512e59a79191fc319368e894238082c3481790b"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "9512e59a79191fc319368e894238082c3481790b"
+      },
+      "resolution": "upstream"
+    }
+  ],
+  "overridden_automatic_results": [
+    {
+      "path": ".gitignore",
+      "automatic": {
+        "mode": "100644",
+        "blob": "d1512167dd2c507fe328ba452506bfb1c8199ba5"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "a3037485a780bc7bf672184e249f0a7db51e6ad5"
+      },
+      "resolution": "upstream"
+    },
+    {
+      "path": "PIX-PORT.md",
+      "automatic": null,
+      "accepted": {
+        "mode": "100644",
+        "blob": "e467fd09eed41ceafb2cd486dee59c60f74c3cb0"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "build.sh",
+      "automatic": {
+        "mode": "100755",
+        "blob": "ad77ee7de85574c43c70231f7a542fde249450ea"
+      },
+      "accepted": null,
+      "resolution": "upstream"
+    },
+    {
+      "path": "include/klee/Core/TerminationTypes.h",
+      "automatic": {
+        "mode": "100644",
+        "blob": "4da5124e75f1ebe155e818e72ed12a3b27d05170"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "9771f1602071ebb42766e490d6737b181120b2c2"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "include/klee/perf-contracts.h",
+      "automatic": {
+        "mode": "100644",
+        "blob": "e6510de270356cd8461c3429307e7bfe73e190cc"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "d750b4188c5a680f34c0fcaf6827a15921c2080b"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "lib/Module/LoopAnalysis.cpp",
+      "automatic": {
+        "mode": "100644",
+        "blob": "38c9e129fc52001063d396797a5b05d3a0e0de7a"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "ab2fe9ba4ece092213d24a46df55009739b32d03"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "scripts/abstract-interpretation/exec_engine.pyc",
+      "automatic": {
+        "mode": "100644",
+        "blob": "e27bb7230df2d6a17e1e2b1e1bba9a566c5fd668"
+      },
+      "accepted": null,
+      "resolution": "upstream"
+    },
+    {
+      "path": "scripts/abstract-interpretation/exec_state.pyc",
+      "automatic": {
+        "mode": "100644",
+        "blob": "72ceb5d6948410cde2685ba6bc4499499fc431be"
+      },
+      "accepted": null,
+      "resolution": "upstream"
+    },
+    {
+      "path": "scripts/abstract-interpretation/instruction.pyc",
+      "automatic": {
+        "mode": "100644",
+        "blob": "2de08cebe279037916dadb62b97f57aa5e14ea51"
+      },
+      "accepted": null,
+      "resolution": "upstream"
+    },
+    {
+      "path": "scripts/abstract-interpretation/parser.pyc",
+      "automatic": {
+        "mode": "100644",
+        "blob": "f32b6b8f4cef9092c386245261c18b0d6510cdc0"
+      },
+      "accepted": null,
+      "resolution": "upstream"
+    },
+    {
+      "path": "tools/check-call-path-compatibility/CMakeLists.txt",
+      "automatic": {
+        "mode": "100644",
+        "blob": "be2c43bb7f335a84b84aa0ec538e699d95fca0be"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "ef5fe693d641eeedcc244a6f92accdd03747d090"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "tools/check-call-path-compatibility/check-call-path-compatibility.cpp",
+      "automatic": {
+        "mode": "100644",
+        "blob": "de1e3087bd7a7f9a97082d1960fb3dfe58830d3c"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "7381ce64482da9bb2b67a66cb85b1e78b72faee4"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "tools/ktest-dehavoc/CMakeLists.txt",
+      "automatic": {
+        "mode": "100644",
+        "blob": "dd59de5796efc7e876444453a718840ccf325170"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "f91163f271fcef1ceaf98a382d6c84913f68063c"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "tools/ktest-gen/ktest-gen.cpp",
+      "automatic": {
+        "mode": "100644",
+        "blob": "285dde41d2347e65d87b4fe9647b5af9b44a1625"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "2d56dc47f62e2269d266a0516427a7bf8dc884eb"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "tools/ktest-randgen/ktest-randgen.cpp",
+      "automatic": {
+        "mode": "100644",
+        "blob": "19a4a0d6635f6c9c6e35e0a9bba50a84c37d9e03"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "295db1f29969d5c5d60916fd6b3e9a9f1e10a7cc"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "tools/stitch-perf-contract/CMakeLists.txt",
+      "automatic": {
+        "mode": "100644",
+        "blob": "e4d8b5287b337a36108931626a4d6f217b75e160"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "ec2422e5391cbf6cfcb6b5dae317f40d902cfb80"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "tools/stitch-perf-contract/stitch-perf-contract.cpp",
+      "automatic": {
+        "mode": "100644",
+        "blob": "6cab1e9cc557af487e11bf0c53bb9dae618c1ec8"
+      },
+      "accepted": {
+        "mode": "100644",
+        "blob": "86830b3e0206fb11ce76f574577f7a3b744a1720"
+      },
+      "resolution": "ported"
+    },
+    {
+      "path": "trace-instructions/.gitignore",
+      "automatic": {
+        "mode": "100644",
+        "blob": "52873453cc5820457344af11e3016989b13855bc"
+      },
+      "accepted": null,
+      "resolution": "upstream"
+    },
+    {
+      "path": "trace-instructions/Makefile",
+      "automatic": {
+        "mode": "100644",
+        "blob": "fd75e9a65403cdf8ebde209e7a8fb508e11cb47f"
+      },
+      "accepted": null,
+      "resolution": "upstream"
+    },
+    {
+      "path": "trace-instructions/pin-trace.cpp",
+      "automatic": {
+        "mode": "100644",
+        "blob": "a24816c0a90eb867742d18bec7c0d431f338c1a2"
+      },
+      "accepted": null,
+      "resolution": "upstream"
+    },
+    {
+      "path": "trace-ir-instrs/CMakeLists.txt",
+      "automatic": {
+        "mode": "100644",
+        "blob": "7daeabcc6989f9a736e3923a2e86c9edf0a0491d"
+      },
+      "accepted": null,
+      "resolution": "upstream"
+    },
+    {
+      "path": "trace-ir-instrs/README.md",
+      "automatic": {
+        "mode": "100644",
+        "blob": "4541e15beec823942ed6cccb64f69bc98fc3a1a9"
+      },
+      "accepted": null,
+      "resolution": "upstream"
+    },
+    {
+      "path": "trace-ir-instrs/TraceIRInstrs.cpp",
+      "automatic": {
+        "mode": "100644",
+        "blob": "c079883ca0218347d6619089d14d0d9b7b79d374"
+      },
+      "accepted": null,
+      "resolution": "upstream"
+    },
+    {
+      "path": "trace-ir-instrs/TraceRuntime.cpp",
+      "automatic": {
+        "mode": "100644",
+        "blob": "29efe28a7a30f2e17063901cfae9935279b1191e"
+      },
+      "accepted": null,
+      "resolution": "upstream"
+    }
+  ],
+  "code_tree_sha256": "66e2b50785062eab37a00bd4c2f468ad34789a0de0c2fedb43ee746655cec85f"
+}

@@ -57,7 +57,7 @@ bool klee::updateDiffMask(StateByteMask *mask, const AddressSpace &refValues,
       firstByte->dump();
       fprintf(stderr, "Type: ");
       fflush(stderr);
-      obj->allocSite->getType()->dump();
+      obj->allocSite->getType()->print(llvm::errs());
       fprintf(stderr, "\n");
       std::string metadata;
       if (isa<llvm::Instruction>(obj->allocSite)) {

@@ -10,6 +10,16 @@
 #ifndef KLEE_EXECUTIONSTATE_H
 #define KLEE_EXECUTIONSTATE_H
 
+#include "AddressSpace.h"
+#include "MemoryManager.h"
+#include "MergeHandler.h"
+
+#include "klee/ADT/ImmutableSet.h"
+#include "klee/ADT/TreeStream.h"
+#include "klee/Expr/Constraints.h"
+#include "klee/Expr/Expr.h"
+#include "klee/KDAlloc/kdalloc.h"
+#include "klee/Module/KInstIterator.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/Expr.h"
 #include "klee/ADT/ImmutableSet.h"
@@ -41,10 +51,10 @@ namespace klee {
 class Array;
 class CallPathNode;
 struct Cell;
+class ExecutionTreeNode;
 struct KFunction;
 struct KInstruction;
 class MemoryObject;
-class PTreeNode;
 struct InstructionInfo;
 class TimingSolver;
 
@@ -332,11 +342,16 @@ public:
   // Overall state of the state - Data specific
 
   /// @brief Exploration depth, i.e., number of times KLEE branched for this state
-  std::uint32_t depth;
+  std::uint32_t depth = 0;
 
   /// @brief Address space used by this state (e.g. Global and Heap)
   AddressSpace addressSpace;
 
+  /// @brief Stack allocator (used with deterministic allocation)
+  kdalloc::StackAllocator stackAllocator;
+
+  /// @brief Heap allocator (used with deterministic allocation)
+  kdalloc::Allocator heapAllocator;
   /// @brief Information necessary for loop invariant induction.
   /// This is a stack capable of tracking loop nests.
   /// Owner.
@@ -386,15 +401,18 @@ public:
   /// @brief Set containing which lines in which files are covered by this state
   std::map<const std::string *, std::set<std::uint32_t>> coveredLines;
 
-  /// @brief Pointer to the process tree of the current state
-  /// Copies of ExecutionState should not copy ptreeNode
-  PTreeNode *ptreeNode = nullptr;
+  /// @brief Pointer to the execution tree of the current state
+  /// Copies of ExecutionState should not copy executionTreeNode
+  ExecutionTreeNode *executionTreeNode = nullptr;
 
   /// @brief Ordered list of symbolics: used to generate test cases.
   //
   // FIXME: Move to a shared list structure (not critical).
   std::vector<std::pair<ref<const MemoryObject>, const Array *>> symbolics;
 
+  /// @brief A set of boolean expressions
+  /// the user has requested be true of a counterexample.
+  ImmutableSet<ref<Expr>> cexPreferences;
   /// @brief The list of possibly havoced memory locations with their names
   ///  and values placed at the last havoc event.
   std::map<ref<const MemoryObject>, HavocInfo> havocs;
@@ -406,6 +424,8 @@ public:
   /// @brief Set of used array names for this state.  Used to avoid collisions.
   std::set<std::string> arrayNames;
 
+  std::map<uint64_t, llvm::Function *> functionAddresses;
+  llvm::Function *resolveFunction(uint64_t address) const;
   std::vector<CallInfo> callPath;
   SymbolSet relevantSymbols;
 
@@ -421,7 +441,7 @@ public:
   std::vector<ref<MergeHandler>> openMergeStack;
 
   /// @brief The numbers of times this state has run through Executor::stepInstruction
-  std::uint64_t steppedInstructions;
+  std::uint64_t steppedInstructions = 0;
 
   std::map<std::string, std::map<int, ref<Expr>>> reused_symbols;
 
@@ -429,7 +449,7 @@ public:
 
   /// @brief Counts how many instructions were executed since the last new
   /// instruction was covered.
-  std::uint32_t instsSinceCovNew;
+  std::uint32_t instsSinceCovNew = 0;
 
   /// @brief Keep track of unwinding state while unwinding, otherwise empty
   std::unique_ptr<UnwindingInformation> unwindingInformation;
@@ -438,13 +458,20 @@ public:
   static std::uint32_t nextID;
 
   /// @brief the state id
-  std::uint32_t id {0};
+  std::uint32_t id = 0;
 
   /// @brief Whether a new instruction was covered in this state
-  bool coveredNew;
+  bool coveredNew = false;
 
   /// @brief Disables forking for this state. Set by user code
-  bool forkDisabled;
+  bool forkDisabled = false;
+
+  /// @brief Mapping symbolic address expressions to concrete base addresses
+  using base_addrs_t = std::map<ref<Expr>, ref<ConstantExpr>>;
+  base_addrs_t base_addrs;
+  /// @brief Mapping MemoryObject addresses to refs used in the base_addrs map
+  using base_mo_t = std::map<uint64_t, std::set<ref<Expr>>>;
+  base_mo_t base_mos;
 
 private:
   void loopRepetition(const llvm::Loop *dstLoop, TimingSolver *solver,
@@ -453,12 +480,12 @@ private:
   void loopExit(const llvm::Loop *srcLoop, bool *terminate);
 
 public:
-  #ifdef KLEE_UNITTEST
+#ifdef KLEE_UNITTEST
   // provide this function only in the context of unittests
-  ExecutionState(){}
-  #endif
+  ExecutionState() = default;
+#endif
   // only to create the initial state
-  explicit ExecutionState(KFunction *kf);
+  explicit ExecutionState(KFunction *kf, MemoryManager *mm);
 
   // XXX total hack, just used to make a state so solver can
   // use on structure
@@ -480,15 +507,19 @@ public:
   void pushFrame(KInstIterator caller, KFunction *kf);
   void popFrame();
 
+  void deallocate(const MemoryObject *mo);
+
   void addSymbolic(const MemoryObject *mo, const Array *array);
   
   void addConstraint(ref<Expr> e);
+  void addCexPreference(const ref<Expr> &cond);
 
   bool merge(const ExecutionState &b);
   void dumpStack(llvm::raw_ostream &out) const;
 
   std::uint32_t getID() const { return id; };
   void setID() { id = nextID++; };
+  static std::uint32_t getLastID() { return nextID - 1; };
 
   std::string getFnAlias(std::string fn);
   void addFnAlias(std::string old_fn, std::string new_fn);

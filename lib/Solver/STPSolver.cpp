@@ -16,14 +16,17 @@
 #include "klee/Expr/Assignment.h"
 #include "klee/Expr/Constraints.h"
 #include "klee/Expr/ExprUtil.h"
-#include "klee/Support/OptionCategories.h"
 #include "klee/Solver/SolverImpl.h"
 #include "klee/Support/ErrorHandling.h"
+#include "klee/Support/OptionCategories.h"
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Errno.h"
 
+#include <array>
 #include <csignal>
+#include <memory>
+#include <string>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/wait.h>
@@ -36,11 +39,28 @@ llvm::cl::opt<bool> DebugDumpSTPQueries(
     llvm::cl::desc("Dump every STP query to stderr (default=false)"),
     llvm::cl::cat(klee::SolvingCat));
 
-llvm::cl::opt<bool> IgnoreSolverFailures(
-    "ignore-solver-failures", llvm::cl::init(false),
+llvm::cl::opt<bool> IgnoreSTPFailures(
+    "ignore-stp-failures", llvm::cl::init(false),
     llvm::cl::desc("Ignore any STP solver failures (default=false)"),
     llvm::cl::cat(klee::SolvingCat));
-}
+
+enum SAT { MINISAT, SIMPLEMINISAT, CRYPTOMINISAT, RISS };
+const std::array<std::string, 4> SATNames{"MiniSat", "simplifying MiniSat",
+                                          "CryptoMiniSat", "RISS"};
+
+llvm::cl::opt<SAT> SATSolver(
+    "stp-sat-solver",
+    llvm::cl::desc(
+        "Set the underlying SAT solver for STP (default=cryptominisat)"),
+    llvm::cl::values(clEnumValN(SAT::MINISAT, "minisat",
+                                SATNames[SAT::MINISAT]),
+                     clEnumValN(SAT::SIMPLEMINISAT, "simpleminisat",
+                                SATNames[SAT::SIMPLEMINISAT]),
+                     clEnumValN(SAT::CRYPTOMINISAT, "cryptominisat",
+                                SATNames[SAT::CRYPTOMINISAT]),
+                     clEnumValN(SAT::RISS, "riss", SATNames[SAT::RISS])),
+    llvm::cl::init(CRYPTOMINISAT), llvm::cl::cat(klee::SolvingCat));
+} // namespace
 
 #define vc_bvBoolExtract IAMTHESPAWNOFSATAN
 
@@ -63,11 +83,16 @@ static void stp_error_handler(const char *err_msg) {
 }
 
 namespace klee {
+  static void stp_failure(std::string const& err_msg) {
+    if (IgnoreSTPFailures)
+      klee_warning("%s", err_msg.c_str());
+    else klee_error("%s", err_msg.c_str());
+  }
 
 class STPSolverImpl : public SolverImpl {
 private:
   VC vc;
-  STPBuilder *builder;
+  std::unique_ptr<STPBuilder> builder;
   time::Span timeout;
   bool useForkedSTP;
   SolverRunStatus runStatusCode;
@@ -76,7 +101,7 @@ public:
   explicit STPSolverImpl(bool useForkedSTP, bool optimizeDivides = true);
   ~STPSolverImpl() override;
 
-  char *getConstraintLog(const Query &) override;
+  std::string getConstraintLog(const Query &) override;
   void setCoreSolverTimeout(time::Span timeout) override { this->timeout = timeout; }
 
   bool computeTruth(const Query &, bool &isValid) override;
@@ -103,6 +128,49 @@ STPSolverImpl::STPSolverImpl(bool useForkedSTP, bool optimizeDivides)
   // we restore the old behaviour.
   vc_setInterfaceFlags(vc, EXPRDELETE, 0);
 
+  // set SAT solver
+  bool SATSolverAvailable = false;
+  bool specifiedOnCommandLine = SATSolver.getNumOccurrences() > 0;
+  switch (SATSolver) {
+  case SAT::MINISAT: {
+    SATSolverAvailable = vc_useMinisat(vc);
+    break;
+  }
+  case SAT::SIMPLEMINISAT: {
+    SATSolverAvailable = vc_useSimplifyingMinisat(vc);
+    break;
+  }
+  case SAT::CRYPTOMINISAT: {
+    SATSolverAvailable = vc_useCryptominisat(vc);
+    break;
+  }
+  case SAT::RISS: {
+    SATSolverAvailable = vc_useRiss(vc);
+    break;
+  }
+  default:
+    assert(false && "Illegal SAT solver value.");
+  }
+
+  // print SMT/SAT status
+  const auto expectedSATName = SATNames[SATSolver.getValue()];
+  std::string SATName{"unknown"};
+  if (vc_isUsingMinisat(vc))
+    SATName = SATNames[SAT::MINISAT];
+  else if (vc_isUsingSimplifyingMinisat(vc))
+    SATName = SATNames[SAT::SIMPLEMINISAT];
+  else if (vc_isUsingCryptominisat(vc))
+    SATName = SATNames[SAT::CRYPTOMINISAT];
+  else if (vc_isUsingRiss(vc))
+    SATName = SATNames[SAT::RISS];
+
+  if (!specifiedOnCommandLine || SATSolverAvailable) {
+    klee_message("SAT solver: %s", SATName.c_str());
+  } else {
+    klee_warning("%s not supported by STP", expectedSATName.c_str());
+    klee_message("Fallback SAT solver: %s", SATName.c_str());
+  }
+
   make_division_total(vc);
 
   vc_registerErrorHandler(::stp_error_handler);
@@ -110,13 +178,18 @@ STPSolverImpl::STPSolverImpl(bool useForkedSTP, bool optimizeDivides)
   if (useForkedSTP) {
     assert(shared_memory_id == 0 && "shared memory id already allocated");
     shared_memory_id =
-        shmget(IPC_PRIVATE, shared_memory_size, IPC_CREAT | 0700);
+        shmget(IPC_PRIVATE, shared_memory_size, IPC_CREAT | 0600);
     if (shared_memory_id < 0)
-      llvm::report_fatal_error("unable to allocate shared memory region");
+      llvm::report_fatal_error(
+          llvm::Twine("unable to allocate shared memory region: ") +
+          llvm::sys::StrError(errno));
     shared_memory_ptr = (unsigned char *)shmat(shared_memory_id, nullptr, 0);
-    if (shared_memory_ptr == (void *)-1)
-      llvm::report_fatal_error("unable to attach shared memory region");
+    int shmatErrno = errno;
     shmctl(shared_memory_id, IPC_RMID, nullptr);
+    if (shared_memory_ptr == (void *)-1)
+      llvm::report_fatal_error(
+          llvm::Twine("unable to attach shared memory region: ") +
+          llvm::sys::StrError(shmatErrno));
   }
 }
 
@@ -126,14 +199,14 @@ STPSolverImpl::~STPSolverImpl() {
   shared_memory_ptr = nullptr;
   shared_memory_id = 0;
 
-  delete builder;
+  builder.reset();
 
   vc_Destroy(vc);
 }
 
 /***/
 
-char *STPSolverImpl::getConstraintLog(const Query &query) {
+std::string STPSolverImpl::getConstraintLog(const Query &query) {
   vc_push(vc);
 
   for (const auto &constraint : query.constraints)
@@ -146,7 +219,10 @@ char *STPSolverImpl::getConstraintLog(const Query &query) {
   vc_printQueryStateToBuffer(vc, builder->getFalse(), &buffer, &length, false);
   vc_pop(vc);
 
-  return buffer;
+  std::string result = buffer;
+  std::free(buffer);
+
+  return result;
 }
 
 bool STPSolverImpl::computeTruth(const Query &query, bool &isValid) {
@@ -228,9 +304,7 @@ runAndGetCexForked(::VC vc, STPBuilder *builder, ::VCExpr q,
   int pid = fork();
   // - error
   if (pid == -1) {
-    klee_warning("fork failed (for STP) - %s", llvm::sys::StrError(errno).c_str());
-    if (!IgnoreSolverFailures)
-      exit(1);
+    stp_failure("fork() failed for STP - " + llvm::sys::StrError(errno));
     return SolverImpl::SOLVER_RUN_STATUS_FORK_FAILED;
   }
   // - child (solver)
@@ -261,9 +335,7 @@ runAndGetCexForked(::VC vc, STPBuilder *builder, ::VCExpr q,
     } while (res < 0 && errno == EINTR);
 
     if (res < 0) {
-      klee_warning("waitpid() for STP failed");
-      if (!IgnoreSolverFailures)
-        exit(1);
+      stp_failure("waitpid() for STP failed");
       return SolverImpl::SOLVER_RUN_STATUS_WAITPID_FAILED;
     }
 
@@ -271,11 +343,9 @@ runAndGetCexForked(::VC vc, STPBuilder *builder, ::VCExpr q,
     // "occasion" return a status when the process was terminated by a
     // signal, so test signal first.
     if (WIFSIGNALED(status) || !WIFEXITED(status)) {
-      klee_warning("STP did not return successfully.  Most likely you forgot "
-                   "to run 'ulimit -s unlimited'");
-      if (!IgnoreSolverFailures) {
-        exit(1);
-      }
+      stp_failure("STP did not return successfully. "
+                  "Most likely you forgot to run 'ulimit -s unlimited'");
+
       return SolverImpl::SOLVER_RUN_STATUS_INTERRUPTED;
     }
 
@@ -308,9 +378,7 @@ runAndGetCexForked(::VC vc, STPBuilder *builder, ::VCExpr q,
     }
 
     // unknown return code
-    klee_warning("STP did not return a recognized code");
-    if (!IgnoreSolverFailures)
-      exit(1);
+    stp_failure("STP did not return a recognised code");
     return SolverImpl::SOLVER_RUN_STATUS_UNEXPECTED_EXIT_CODE;
   }
 }
@@ -326,7 +394,7 @@ bool STPSolverImpl::computeInitialValues(
   for (const auto &constraint : query.constraints)
     vc_assertFormula(vc, builder->construct(constraint));
 
-  ++stats::queries;
+  ++stats::solverQueries;
   ++stats::queryCounterexamples;
 
   ExprHandle stp_e = builder->construct(query.expr);
@@ -341,13 +409,13 @@ bool STPSolverImpl::computeInitialValues(
 
   bool success;
   if (useForkedSTP) {
-    runStatusCode = runAndGetCexForked(vc, builder, stp_e, objects, values,
-                                       hasSolution, timeout);
+    runStatusCode = runAndGetCexForked(vc, builder.get(), stp_e, objects,
+                                       values, hasSolution, timeout);
     success = ((SOLVER_RUN_STATUS_SUCCESS_SOLVABLE == runStatusCode) ||
                (SOLVER_RUN_STATUS_SUCCESS_UNSOLVABLE == runStatusCode));
   } else {
     runStatusCode =
-        runAndGetCex(vc, builder, stp_e, objects, values, hasSolution);
+        runAndGetCex(vc, builder.get(), stp_e, objects, values, hasSolution);
     success = true;
   }
 
@@ -368,9 +436,9 @@ SolverImpl::SolverRunStatus STPSolverImpl::getOperationStatusCode() {
 }
 
 STPSolver::STPSolver(bool useForkedSTP, bool optimizeDivides)
-    : Solver(new STPSolverImpl(useForkedSTP, optimizeDivides)) {}
+    : Solver(std::make_unique<STPSolverImpl>(useForkedSTP, optimizeDivides)) {}
 
-char *STPSolver::getConstraintLog(const Query &query) {
+std::string STPSolver::getConstraintLog(const Query &query) {
   return impl->getConstraintLog(query);
 }
 

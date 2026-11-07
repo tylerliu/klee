@@ -1,92 +1,68 @@
 validate_build_config_llvm() {
-    # Check variables that are needed for building 
-    [[ -n "${LLVM_SRC_BASE}" ]] || { echo "LLVM_SRC_BASE not set"; exit 1; }
-    [[ -n "${LLVM_VERSION_SHORT}" ]] || { echo "LLVM_VERSION_SHORT not set"; exit 1; }
+  # Check variables that are needed for building
+  [[ -n "${LLVM_SRC_BASE}" ]] || {
+    echo "LLVM_SRC_BASE not set"
+    exit 1
+  }
+  [[ -n "${LLVM_VERSION_SHORT}" ]] || {
+    echo "LLVM_VERSION_SHORT not set"
+    exit 1
+  }
 }
 
 setup_build_variables_llvm() {
-    LLVM_SUFFIX=""
+  source "${DIR}/common-functions"
+  LLVM_SUFFIX=""
 
-    local BuildMode=""
-    local enable_optimized=$(to_bool "${ENABLE_OPTIMIZED}")
-    local enable_debug=$(to_bool "${ENABLE_DEBUG}")
-    local disable_assertions=$(to_bool "${DISABLE_ASSERTIONS}")
-    local requires_rtti=$(to_bool "${REQUIRES_RTTI}")
+  local BuildMode=""
+  local enable_optimized=$(to_bool "${ENABLE_OPTIMIZED}")
+  local enable_debug=$(to_bool "${ENABLE_DEBUG}")
+  local disable_assertions=$(to_bool "${DISABLE_ASSERTIONS}")
+  local requires_rtti=$(to_bool "${REQUIRES_RTTI}")
 
-    if [[ "${enable_optimized}" == "1" ]]; then
-      LLVM_SUFFIX+="_O"
-      BuildMode="Release"
-    else
-      LLVM_SUFFIX+="_NO"
-    fi
+  if [[ "${enable_optimized}" == "1" ]]; then
+    LLVM_SUFFIX+="_O"
+    BuildMode="Release"
+  else
+    LLVM_SUFFIX+="_NO"
+  fi
 
-    if [[ ("${enable_debug}" == "1") || ("${enable_optimized}" != "1") ]]; then
-      LLVM_SUFFIX+="_D"
-      [ -z "$BuildMode" ] && BuildMode="Debug" || BuildMode="$BuildMode+Debug"
-    else
-      LLVM_SUFFIX+="_ND"
-    fi
+  if [[ ("${enable_debug}" == "1") || ("${enable_optimized}" != "1") ]]; then
+    LLVM_SUFFIX+="_D"
+    [ -z "$BuildMode" ] && BuildMode="Debug" || BuildMode="$BuildMode+Debug"
+  else
+    LLVM_SUFFIX+="_ND"
+  fi
 
-    if [[ "${disable_assertions}" == "1" || -z "${disable_assertions}" ]]; then
-      LLVM_SUFFIX+="_NA"
-    else
-      LLVM_SUFFIX+="_A"
-      [ -z "$BuildMode" ] && BuildMode="Asserts" || BuildMode="$BuildMode+Asserts"
-    fi
+  if [[ "${disable_assertions}" == "1" || -z "${disable_assertions}" ]]; then
+    LLVM_SUFFIX+="_NA"
+  else
+    LLVM_SUFFIX+="_A"
+    [ -z "$BuildMode" ] && BuildMode="Asserts" || BuildMode="$BuildMode+Asserts"
+  fi
 
-    if [[ "${requires_rtti}" == "1" ]]; then
-      LLVM_SUFFIX+="_RTTI"
-    fi
+  if [[ "${requires_rtti}" == "1" ]]; then
+    LLVM_SUFFIX+="_RTTI"
+  fi
 
-    if [[ "${SANITIZER_SUFFIX}x" != "x" ]]; then
-      LLVM_SUFFIX+="${SANITIZER_SUFFIX}"
-    fi
+  if [[ "${SANITIZER_SUFFIX}x" != "x" ]]; then
+    LLVM_SUFFIX+="${SANITIZER_SUFFIX}"
+  fi
 
-    LLVM_SRC_BASE="${BASE}/llvm-${LLVM_VERSION_SHORT}"
-    LLVM_BUILD="${LLVM_SRC_BASE}-build${LLVM_SUFFIX}"
-    LLVM_INSTALL="${LLVM_SRC_BASE}-install${LLVM_SUFFIX}"
-    LLVM_BIN="${LLVM_INSTALL}/bin"
-    LLVM_BUILD_BIN="${LLVM_BUILD}/bin"
+  LLVM_SRC_BASE="${BASE}/llvm-${LLVM_VERSION_SHORT}"
+  LLVM_BUILD="${LLVM_SRC_BASE}-build${LLVM_SUFFIX}"
+  LLVM_INSTALL="${LLVM_SRC_BASE}-install${LLVM_SUFFIX}"
+  LLVM_BIN="${LLVM_INSTALL}/bin"
+  LLVM_BUILD_BIN="${LLVM_BUILD}/bin"
 
-    LLVM_CONFIG="${LLVM_BIN}/llvm-config"
-    BITCODE_CC="${LLVM_BIN}/clang"
-    BITCODE_CXX="${LLVM_BIN}/clang++"
+  if [[ "${SANITIZER_BUILD:-}" == "memory" ]]; then
+    LLVM_BUILD_LIBCXX="${LLVM_INSTALL}-libcxx"
+  fi
 
 
-    for sanitizer in "${SANITIZERS[@]}"; do
-      [[ -z "${sanitizer}" ]] && continue
-      # Undefined Behaviour Sanitizer
-      if [ "${sanitizer}" == "memory" ]; then
-        SANITIZER_LLVM_UNINSTRUMENTED="${LLVM_BUILD}_uninstrumented"
-        SANITIZER_LLVM_LIBCXX="${LLVM_BUILD}_libcxx"
-
-        SANITIZER_C_COMPILER="${SANITIZER_LLVM_UNINSTRUMENTED}/bin/clang"
-        SANITIZER_CXX_COMPILER="${SANITIZER_LLVM_UNINSTRUMENTED}/bin/clang++"
-        SANITIZER_CMAKE_C_COMPILER=("-DCMAKE_C_COMPILER=${SANITIZER_C_COMPILER}")
-        SANITIZER_CMAKE_CXX_COMPILER=("-DCMAKE_CXX_COMPILER=${SANITIZER_CXX_COMPILER}")
-
-        MSAN_LINK_FLAGS=("-lc++abi" "-Wl,--rpath=${SANITIZER_LLVM_LIBCXX}/lib" "-L${SANITIZER_LLVM_LIBCXX}/lib")
-        MSAN_FLAGS=("${MSAN_LINK_FLAGS[@]}" -nostdinc++
-           -isystem "${SANITIZER_LLVM_LIBCXX}/include"
-           -isystem "${SANITIZER_LLVM_LIBCXX}/include/c++/v1"
-           "-fsanitize=memory"
-           "-fsanitize-memory-track-origins"
-           -w -fno-omit-frame-pointer -g)
-        SANITIZER_CXX_FLAGS+=("${MSAN_FLAGS[@]}" "-stdlib=libc++")
-        SANITIZER_C_FLAGS+=("${MSAN_FLAGS[@]}")
-        SANITIZER_LD_FLAGS+=("${MSAN_LINK_FLAGS[@]}")
-
-        # Use the uninstrumented compiler
-        BITCODE_CC="${SANITIZER_C_COMPILER}"
-        BITCODE_CXX="${SANITIZER_CXX_COMPILER}"
-        # But point to the instrumented llvm-config
-        LLVM_CONFIG="${LLVM_BIN}/llvm-config"
-        continue
-      fi
-      # Setup default sanitizer arguments
-      SANITIZER_C_COMPILER="${LLVM_BIN}/clang"
-      SANITIZER_CXX_COMPILER="${LLVM_BIN}/clang++"
-    done
+  LLVM_CONFIG="${LLVM_BIN}/llvm-config"
+  BITCODE_CC="${LLVM_BIN}/clang"
+  BITCODE_CXX="${LLVM_BIN}/clang++"
 }
 
 download_llvm() {
@@ -97,104 +73,64 @@ download_llvm() {
   local LLVM_VERSION_MAJOR="${LLVM_VERSION/.*/}"
 
   branch_name="release/${LLVM_VERSION_MAJOR}.x"
-  if [[ "${LLVM_VERSION_MAJOR}" -le 3 ]]; then
-    branch_name="release/${LLVM_VERSION}.x"
-  fi
   git_clone_or_update "https://github.com/llvm/llvm-project.git" "${LLVM_SRC_BASE}" "${branch_name}" || exit 1
-  if [[ "${LLVM_VERSION_MAJOR}" -lt 4 ]]; then
-    # Use symlinks for older versions whose build systems do not support the monorepo directory layout
-    ln -s "${LLVM_SRC_BASE}/clang" "${LLVM_SRC_BASE}/llvm/tools/"
-    ln -s "${LLVM_SRC_BASE}/compiler-rt" "${LLVM_SRC_BASE}/llvm/projects/"
-    ln -s "${LLVM_SRC_BASE}/libcxx" "${LLVM_SRC_BASE}/llvm/projects/"
-    ln -s "${LLVM_SRC_BASE}/libcxxabi" "${LLVM_SRC_BASE}/llvm/projects/"
-  fi
-
   # Apply existing patches if needed
   if [ -f "${DIR}/patches/llvm${LLVM_VERSION_SHORT}.patch" ]; then
-     cd "${LLVM_SRC_BASE}" || (echo "Directory does not exist"; exit 1)
-     patch -p1 --follow-symlinks -i "${DIR}/patches/llvm${LLVM_VERSION_SHORT}.patch" || return 1
+    cd "${LLVM_SRC_BASE}" || (
+      echo "Directory does not exist"
+      exit 1
+    )
+    patch -p1 --follow-symlinks -i "${DIR}/patches/llvm${LLVM_VERSION_SHORT}.patch" || return 1
   fi
 
-  touch "${LLVM_SRC_BASE}/.src_checked_out" 
+  touch "${LLVM_SRC_BASE}/.src_checked_out"
 }
 
-build_llvm() {
-    local enable_optimized=$(to_bool "${ENABLE_OPTIMIZED}")
-    local enable_debug=$(to_bool "${ENABLE_DEBUG}")
-    local disable_assertions=$(to_bool "${DISABLE_ASSERTIONS}")
-    local requires_rtti=$(to_bool "${REQUIRES_RTTI}")
 
-    # For memory sanitizer, we have a multi-stage build process
-    if [[ "${SANITIZER_BUILD}" == "memory" ]]; then
-       # Build uninstrumented compiler
-       mkdir -p "${SANITIZER_LLVM_UNINSTRUMENTED}"
-       cd "${SANITIZER_LLVM_UNINSTRUMENTED}"
-       cmake -GNinja -DCMAKE_BUILD_TYPE=Release \
-      "-DLLVM_OPTIMIZED_TABLEGEN=ON" \
-        "-DLLVM_ENABLE_PROJECTS=clang;compiler-rt;libcxx;libcxxabi" \
-      "-DLLVM_TARGETS_TO_BUILD=X86" \
-        "${LLVM_SRC_BASE}/llvm"
-    ninja compiler-rt cxx cxxabi clang || return 1
-
-       # Build instrumented libc/libc++
-       mkdir -p "${SANITIZER_LLVM_LIBCXX}"
-       cd "${SANITIZER_LLVM_LIBCXX}"
-       cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-        "-DLLVM_ENABLE_PROJECTS=clang;compiler-rt;libcxx;libcxxabi" \
-        -DLLVM_USE_SANITIZER=MemoryWithOrigins \
-        "${SANITIZER_CMAKE_C_COMPILER[@]}" \
-        "${SANITIZER_CMAKE_CXX_COMPILER[@]}" \
-      "-DLLVM_OPTIMIZED_TABLEGEN=ON" \
-      "-DLLVM_TARGETS_TO_BUILD=X86" \
-        "${LLVM_SRC_BASE}/llvm"
-    ninja compiler-rt cxx cxxabi|| return 1
-
-       # Build instrumented clang
-       mkdir -p "${LLVM_BUILD}"
-       cd "${LLVM_BUILD}"
-       C_F="${SANITIZER_C_FLAGS[*]}"
-       CXX_F="${SANITIZER_CXX_FLAGS[*]}"
-       LD_F="${SANITIZER_LD_FLAGS[*]}"
-       cmake -GNinja \
-          "${SANITIZER_CMAKE_C_COMPILER[@]}" \
-          "${SANITIZER_CMAKE_CXX_COMPILER[@]}" \
-          -DCMAKE_C_FLAGS="$C_F" \
-          -DCMAKE_CXX_FLAGS="${CXX_F}" \
-          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-          "-DLLVM_ENABLE_PROJECTS=clang;compiler-rt;libcxx;libcxxabi" \
-          -DLLVM_ENABLE_ASSERTIONS=On \
-          -DLLVM_USE_SANITIZER=MemoryWithOrigins \
-          -DLLVM_ENABLE_LIBCXX=ON \
-          -DCMAKE_EXE_LINKER_FLAGS="${LD_F}" \
-          -DCMAKE_INSTALL_PREFIX="${LLVM_INSTALL}" \
-      -DBUILD_SHARED_LIBS=ON \
-      -DLLVM_OPTIMIZED_TABLEGEN=ON \
-      -DLLVM_TARGETS_TO_BUILD=X86 \
-          "${LLVM_SRC_BASE}/llvm"
-      # Build clang as a dependency and install all needed packages
-    ninja clang || return 1
-      return 0
-    fi
+configure_llvm() {
+  local enable_optimized=$(to_bool "${ENABLE_OPTIMIZED}")
+  local enable_debug=$(to_bool "${ENABLE_DEBUG}")
+  local disable_assertions=$(to_bool "${DISABLE_ASSERTIONS}")
+  local requires_rtti=$(to_bool "${REQUIRES_RTTI}")
 
   # Configure; build; and install
   mkdir -p "${LLVM_BUILD}"
-  cd "${LLVM_BUILD}"
-
-  # Skip building if already finished
-  [[ -e "${LLVM_BUILD}/.build_finished" ]] && return 0
 
   # Configure LLVM
   CONFIG=(
-     "-DCMAKE_INSTALL_PREFIX=${LLVM_INSTALL}"
-     "-DLLVM_BUILD_LLVM_DYLIB=TRUE"
+    "-DCMAKE_INSTALL_PREFIX=${LLVM_INSTALL}"
   )
 
-  # Select components to build
-  if [[ ${LLVM_VERSION_SHORT} -ge 60 ]]; then
-    CONFIG+=("-DLLVM_ENABLE_PROJECTS=clang;compiler-rt;libcxx;libcxxabi")
-  else
-    CONFIG+=("-DLLVM_ENABLE_PROJECTS=clang;compiler-rt")
+
+  if [[ "${SANITIZER_BUILD:-}" == "memory" ]]; then
+    # Two stage process, build libcxx and libcxxabi
+
+    # Skip building if already finished
+    if [[ ! -f "${LLVM_BUILD_LIBCXX}/.build_finished" ]]; then
+      mkdir -p "${LLVM_BUILD_LIBCXX}"
+      cd "${LLVM_BUILD_LIBCXX}"
+      cmake -GNinja "${LLVM_SRC_BASE}/llvm" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DLLVM_ENABLE_PROJECTS="libcxx;libcxxabi" \
+        -DCMAKE_C_COMPILER="${SANITIZER_C_COMPILER}" \
+        -DCMAKE_CXX_COMPILER="${SANITIZER_CXX_COMPILER}" \
+        -DLLVM_USE_SANITIZER=MemoryWithOrigins
+      cmake --build . -- cxx cxxabi || return 1
+      touch "${LLVM_BUILD_LIBCXX}/.build_finished"
+    fi
+
+    CONFIG+=(
+      -DCMAKE_CXX_FLAGS="-fsanitize=memory -stdlib=libc++ -isystem ${LLVM_BUILD_LIBCXX}/include -isystem ${LLVM_BUILD_LIBCXX}/include/c++/v1"
+    )
+
+    LLVM_LINKER_FLAGS="-lc++abi -Wl,--rpath=${LLVM_BUILD_LIBCXX}/lib -L${LLVM_BUILD_LIBCXX}/lib -fsanitize=memory -nostdinc++"
   fi
+
+  cd "${LLVM_BUILD}"
+
+  # Select components to build
+  local ENABLED_LLVM_PROJECTS
+  ENABLED_LLVM_PROJECTS="clang"
 
   # cmake build
   if [[ "${enable_optimized}" == "1" && "${enable_debug}" != "1" ]]; then
@@ -227,73 +163,100 @@ build_llvm() {
 
   # Remove unneeded targets
   CONFIG+=(
-     "-DLLVM_INCLUDE_EXAMPLES=OFF"
-#     "-DLLVM_INCLUDE_TESTS=OFF"
-    "-DCLANG_INCLUDE_TESTS=OFF"
-     "-DLLVM_INCLUDE_BENCHMARKS=OFF"
-     "-DBUILD_SHARED_LIBS=ON"
-    "-DLLVM_OPTIMIZED_TABLEGEN=ON"
-    "-DLLVM_TARGETS_TO_BUILD=X86"
+    "-DLLVM_INCLUDE_BENCHMARKS:BOOL=OFF"
+    "-DLLVM_INCLUDE_EXAMPLES:BOOL=OFF"
+    "-DLLVM_INCLUDE_TESTS:BOOL=OFF"
+    "-DLLVM_OPTIMIZED_TABLEGEN:BOOL=TRUE"
+    "-DLLVM_TARGETS_TO_BUILD:STRING=X86"
+    "-DLLVM_INSTALL_UTILS:BOOL=TRUE" # Install FileCheck and Not
+    "-DLLVM_PARALLEL_LINK_JOBS=1"
+    "-DCLANG_INCLUDE_TESTS:BOOL=OFF"
   )
 
-  local variables=("")
-
-  if [[ -n "${CC:-}" ]]; then
-    variables+=("CC=${CC}")
-  fi
-
-  if [[ -n "${CXX:-}" ]]; then
-    variables+=("CXX=${CXX}")
-  fi
-
-  if [[ -n "${LDFLAGS:-}" ]]; then
-    variables+=("LDFLAGS=${LLVM_LDFLAGS}")
-  fi
-
-  if [[ -n "${variables[*]}" ]]; then
-    "${variables[*]}" cmake "${CONFIG[@]}" "${LLVM_SRC_BASE}/llvm"
+  if [[ "${SANITIZER_BUILD:-}" == "memory" ]]; then
+    # We have to build without libunwind if RTTI is disabled
+    CONFIG+=("-DLLVM_ENABLE_PROJECTS=${ENABLED_LLVM_PROJECTS}")
   else
-    cmake "${CONFIG[@]}" "${LLVM_SRC_BASE}/llvm"
+    CONFIG+=(
+        "-DLLVM_BUILD_LLVM_DYLIB:BOOL=ON"
+        "-DLLVM_LINK_LLVM_DYLIB:BOOL=ON"
+        "-DLLVM_BUILD_STATIC:BOOL=OFF"
+        "-DLIBCLANG_BUILD_STATIC:BOOL=OFF"
+    )
+    CONFIG+=("-DLLVM_ENABLE_PROJECTS=${ENABLED_LLVM_PROJECTS}")
+    if [[ "${LLVM_VERSION_SHORT}" -ge "170" ]]; then
+      CONFIG+=("-DLLVM_ENABLE_RUNTIMES=libcxx;libcxxabi;libunwind")
+    else
+      CONFIG+=("-DLLVM_ENABLE_RUNTIMES=libcxx;libcxxabi")
+    fi
   fi
 
-  # Linking LLVM can require a lot of memory.
-  # First try multicore - if that doesn't work, try single core
-  (make "-j$(nproc)") || (make) || return 1
+  if [[ -n ${SANITIZER_BUILD} ]]; then
+    if [[ -n "${SANITIZER_C_COMPILER:-}" ]]; then
+      CC="${SANITIZER_C_COMPILER}"
+    fi
+    if [[ -n "${SANITIZER_CXX_COMPILER:-}" ]]; then
+      CXX="${SANITIZER_CXX_COMPILER}"
+    fi
+
+    if [[ "${SANITIZER_BUILD}" == "address" ]] ; then
+      CONFIG+=("-DLLVM_USE_SANITIZER=Address")
+    fi
+    if [[ "${SANITIZER_BUILD}" == "undefined" ]] ; then
+      CONFIG+=("-DLLVM_USE_SANITIZER=Undefined")
+    fi
+    if [[ "${SANITIZER_BUILD}" == "memory" ]] ; then
+      CONFIG+=("-DLLVM_USE_SANITIZER=MemoryWithOrigins")
+    fi
+  fi
+
+  (
+    if [[ -n "${CC:-}" ]]; then
+      export "CC=${CC}"
+    fi
+
+    if [[ -n "${CXX:-}" ]]; then
+      export "CXX=${CXX}"
+    fi
+
+    if [[ -n "${LLVM_LINKER_FLAGS:-}" ]]; then
+      export "LDFLAGS=${LLVM_LINKER_FLAGS}"
+    fi
+
+    cmake -G Ninja "${CONFIG[@]}" "${LLVM_SRC_BASE}/llvm"
+  )
+}
+build_llvm() {
+  # Skip building if already finished
+  [[ -f "${LLVM_BUILD}/.build_finished" ]] && return 0
+
+  configure_llvm || return 1
+  (
+    if [[ -n "${CC:-}" ]]; then
+      export "CC=${CC}"
+    fi
+
+    if [[ -n "${CXX:-}" ]]; then
+      export "CXX=${CXX}"
+    fi
+
+    if [[ "${SANITIZER_BUILD:-}" == "memory" ]]; then
+      ninja clang || return 1
+    else
+      ninja || return 1
+    fi
+  ) || return 1
   touch "${LLVM_BUILD}/.build_finished"
+
 }
 
 install_llvm() {
-  if [[ "${SANITIZER_BUILD}" != "memory" ]]; then
-    cd "${LLVM_BUILD}"
-    make "-j$(nproc)" install
-    cp "${LLVM_BUILD_BIN}/FileCheck" "${LLVM_INSTALL}/bin/"
-    cp "${LLVM_BUILD_BIN}/not" "${LLVM_INSTALL}/bin/"
-  
-    # Remove debug information from binaries
-    strip "${LLVM_INSTALL}/bin/"* || /bin/true
-    strip "${LLVM_INSTALL}/lib/libclang"* || /bin/true
-    strip "${LLVM_INSTALL}/lib/libLTO"* || /bin/true
-  else
-    # Handle memory sanitizer install
-    LLVM_PACKAGES=( \
-      install-clang install-llvm-config install-llvm-objdump
-      install-llvm-link install-llvm-ar install-llvm-nm install-llvm-dis
-      install-clang-headers install-llvm-as
-      install-llvm-symbolizer install-LLVMSupport install-lli not FileCheck )
-  
-    if [[ ${LLVM_VERSION_SHORT} -eq 38 ]]; then
-      LLVM_PACKAGES=("${LLVM_PACKAGES[@]}" installhdrs)
-    else
-      LLVM_PACKAGES=("${LLVM_PACKAGES[@]}" install-llvm-headers)
-    fi
-  
-    ninja "${LLVM_PACKAGES[@]}"
-
-    for i in $(ninja -t targets |grep install-LLVM | cut -d : -f 1); do ninja "$i"; done
-    
-    cp "${LLVM_BUILD}/bin/FileCheck" "${LLVM_INSTALL}/bin/"
-    cp "${LLVM_BUILD}/bin/not" "${LLVM_INSTALL}/bin/"
-  fi
+  cd "${LLVM_BUILD}"
+  ninja install
+  # Remove debug information from binaries
+  strip "${LLVM_INSTALL}/bin/"* || /bin/true
+  strip "${LLVM_INSTALL}/lib/libclang"* || /bin/true
+  strip "${LLVM_INSTALL}/lib/libLTO"* || /bin/true
 
   touch "${LLVM_INSTALL}/.install_finished"
 }
@@ -303,7 +266,7 @@ is_installed_llvm() {
   (
     setup_build_variables_llvm
     # Check if the specific llvm-config exists
-    [[ -f "${LLVM_BUILD_BIN}/llvm-config" ]]
+    [[ -f "${LLVM_INSTALL}/bin/llvm-config" ]]
     [[ -f "${LLVM_INSTALL}/.install_finished" ]]
   ) || return 1
 }
@@ -323,9 +286,9 @@ setup_artifact_variables_llvm() {
 get_build_artifacts_llvm() {
   (
     setup_build_variables_llvm
+    if [[ "${SANITIZER_BUILD:-}" == "memory" ]]; then
+      echo "${LLVM_BUILD_LIBCXX}"
+    fi
     echo "${LLVM_INSTALL}"
-    echo "${LLVM_SRC_BASE}"
-    [[ "${sanitizer}" == "memory" ]] && echo "${SANITIZER_LLVM_UNINSTRUMENTED}"
-    [[ "${sanitizer}" == "memory" ]] && echo "${SANITIZER_LLVM_LIBCXX}"
   )
 }

@@ -1,11 +1,8 @@
-This repo contains features neccesary for the Bolt project.
-
-Note:
-- This repo supports Z3 version > 4.11.0
-
 KLEE Symbolic Virtual Machine
+=============================
 
-[![Build Status](https://github.com/tylerliu/klee/workflows/CI/badge.svg)](https://github.com/tylerliu/klee/actions?query=workflow%3ACI)
+[![Build Status](https://github.com/klee/klee/workflows/CI/badge.svg)](https://github.com/klee/klee/actions?query=workflow%3ACI)
+[![Coverage](https://codecov.io/gh/klee/klee/branch/master/graph/badge.svg)](https://codecov.io/gh/klee/klee)
 
 `KLEE` is a symbolic virtual machine built on top of the LLVM compiler
 infrastructure. Currently, there are two primary components:
@@ -26,4 +23,4 @@ environment that matches a computed test input, including setting up
 files, pipes, environment variables, and passing command line
 arguments.
 
-For further information, see the [webpage](http://klee.github.io/).
+For further information, see the [webpage](https://klee-se.org/).

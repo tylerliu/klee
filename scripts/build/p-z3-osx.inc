@@ -1,13 +1,12 @@
 install_binary_artifact_z3 () {
-  set +e
-  brew install python@2
-  if [[ "X$?" != "X0" ]]; then
-     brew link --overwrite python@2
-  fi
-  set -e
   brew install z3
 }
 
 is_installed_z3() {
-    [[ -f "/usr/local/opt/z3/bin/z3" ]]
+    [[ -f "/opt/homebrew/bin/z3" ]]
+}
+
+setup_artifact_variables_z3() {
+  # shellcheck disable=SC2034
+  Z3_INSTALL_PATH="/opt/homebrew/"
 }

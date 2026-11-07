@@ -12,12 +12,20 @@
 
 #include "klee/Config/Version.h"
 
+#include "klee/Support/CompilerWarning.h"
+DISABLE_WARNING_PUSH
+DISABLE_WARNING_DEPRECATED_DECLARATIONS
+#if LLVM_VERSION_MAJOR >= 17
+#include "llvm/TargetParser/Triple.h"
+#else
 #include "llvm/ADT/Triple.h"
+#endif // LLVM_VERSION_MAJOR
 #include "llvm/CodeGen/IntrinsicLowering.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+DISABLE_WARNING_POP
 
 namespace llvm {
 class Function;
@@ -61,6 +69,7 @@ class IntrinsicCleanerPass : public llvm::ModulePass {
   llvm::IntrinsicLowering *IL;
 
   bool runOnBasicBlock(llvm::BasicBlock &b, llvm::Module &M);
+  bool runOnFunction(llvm::Function &F);
 
 public:
   IntrinsicCleanerPass(const llvm::DataLayout &TD)
@@ -184,18 +193,6 @@ private:
   static bool isFunctionOrGlobalFunctionAlias(const llvm::GlobalValue *gv);
 
 };
-
-#ifdef USE_WORKAROUND_LLVM_PR39177
-/// WorkaroundLLVMPR39177Pass - Workaround for LLVM PR39177 within KLEE repo.
-/// For more information on this, please refer to the comments in
-/// cmake/workaround_llvm_pr39177.cmake
-class WorkaroundLLVMPR39177Pass : public llvm::ModulePass {
-public:
-  static char ID;
-  WorkaroundLLVMPR39177Pass() : llvm::ModulePass(ID) {}
-  bool runOnModule(llvm::Module &M) override;
-};
-#endif
 
 /// Instruments every function that contains a KLEE function call as nonopt
 class OptNonePass : public llvm::ModulePass {

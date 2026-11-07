@@ -473,11 +473,11 @@ std::map<std::string, long> process_candidate(
   }
 #endif
 
-  klee::Solver *solver = klee::createCoreSolver(klee::Z3_SOLVER);
+  auto solver = klee::createCoreSolver(klee::Z3_SOLVER);
   assert(solver);
-  solver = createCexCachingSolver(solver);
-  solver = createCachingSolver(solver);
-  solver = createIndependentSolver(solver);
+  solver = createCexCachingSolver(std::move(solver));
+  solver = createCachingSolver(std::move(solver));
+  solver = createIndependentSolver(std::move(solver));
 
   klee::ConstraintSet constraints = call_path->constraints;
   klee::ConstraintManager constraints_manager(constraints);
@@ -873,11 +873,11 @@ int main(int argc, char **argv, char **envp) {
 
   /* Pull in all the constraints from the call path */
 
-  klee::Solver *solver = klee::createCoreSolver(klee::Z3_SOLVER);
+  auto solver = klee::createCoreSolver(klee::Z3_SOLVER);
   assert(solver);
-  solver = createCexCachingSolver(solver);
-  solver = createCachingSolver(solver);
-  solver = createIndependentSolver(solver);
+  solver = createCexCachingSolver(std::move(solver));
+  solver = createCachingSolver(std::move(solver));
+  solver = createIndependentSolver(std::move(solver));
 
   klee::ConstraintSet constraints = call_path->constraints;
   klee::ConstraintManager constraints_manager(constraints);

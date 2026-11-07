@@ -13,7 +13,6 @@ set(SRC_FILES
         abort.c
         atexit.c
         atoi.c
-        bcmp.c
         calloc.c
         fortify-klibc.c
         htonl.c
@@ -34,6 +33,7 @@ set(SRC_FILES
         strtoul.c
         tolower.c
         toupper.c
+        errno.c
         )
 
 # Add __NO_INLINE__ to prevent glibc from using inline definitions of some

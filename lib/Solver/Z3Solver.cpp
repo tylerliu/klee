@@ -8,9 +8,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "klee/Config/config.h"
-#include "klee/Support/OptionCategories.h"
 #include "klee/Support/ErrorHandling.h"
 #include "klee/Support/FileHandling.h"
+#include "klee/Support/OptionCategories.h"
+
+#include <csignal>
 
 #ifdef ENABLE_Z3
 
@@ -24,6 +26,8 @@
 #include "klee/Solver/SolverImpl.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
+
+#include <memory>
 
 namespace {
 // NOTE: Very useful for debugging Z3 behaviour. These files can be given to
@@ -55,7 +59,7 @@ namespace klee {
 
 class Z3SolverImpl : public SolverImpl {
 private:
-  Z3Builder *builder;
+  std::unique_ptr<Z3Builder> builder;
   time::Span timeout;
   SolverRunStatus runStatusCode;
   std::unique_ptr<llvm::raw_fd_ostream> dumpedQueriesFile;
@@ -73,8 +77,8 @@ public:
   Z3SolverImpl();
   ~Z3SolverImpl();
 
-  char *getConstraintLog(const Query &);
-  void setCoreSolverTimeout(time::Span _timeout) {
+  std::string getConstraintLog(const Query &) override;
+  void setCoreSolverTimeout(time::Span _timeout) override {
     timeout = _timeout;
 
     auto timeoutInMilliSeconds = static_cast<unsigned>((timeout.toMicroseconds() / 1000));
@@ -84,18 +88,18 @@ public:
                        timeoutInMilliSeconds);
   }
 
-  bool computeTruth(const Query &, bool &isValid);
-  bool computeValue(const Query &, ref<Expr> &result);
+  bool computeTruth(const Query &, bool &isValid) override;
+  bool computeValue(const Query &, ref<Expr> &result) override;
   bool computeInitialValues(const Query &,
                             const std::vector<const Array *> &objects,
-                            std::vector<std::vector<unsigned char> > &values,
-                            bool &hasSolution);
+                            std::vector<std::vector<unsigned char>> &values,
+                            bool &hasSolution) override;
   SolverRunStatus
   handleSolverResponse(::Z3_solver theSolver, ::Z3_lbool satisfiable,
                        const std::vector<const Array *> *objects,
-                       std::vector<std::vector<unsigned char> > *values,
+                       std::vector<std::vector<unsigned char>> *values,
                        bool &hasSolution);
-  SolverRunStatus getOperationStatusCode();
+  SolverRunStatus getOperationStatusCode() override;
 };
 
 Z3SolverImpl::Z3SolverImpl()
@@ -133,12 +137,11 @@ Z3SolverImpl::Z3SolverImpl()
 
 Z3SolverImpl::~Z3SolverImpl() {
   Z3_params_dec_ref(builder->ctx, solverParameters);
-  delete builder;
 }
 
-Z3Solver::Z3Solver() : Solver(new Z3SolverImpl()) {}
+Z3Solver::Z3Solver() : Solver(std::make_unique<Z3SolverImpl>()) {}
 
-char *Z3Solver::getConstraintLog(const Query &query) {
+std::string Z3Solver::getConstraintLog(const Query &query) {
   return impl->getConstraintLog(query);
 }
 
@@ -146,7 +149,7 @@ void Z3Solver::setCoreSolverTimeout(time::Span timeout) {
   impl->setCoreSolverTimeout(timeout);
 }
 
-char *Z3SolverImpl::getConstraintLog(const Query &query) {
+std::string Z3SolverImpl::getConstraintLog(const Query &query) {
   std::vector<Z3ASTHandle> assumptions;
   // We use a different builder here because we don't want to interfere
   // with the solver's builder because it may change the solver builder's
@@ -180,35 +183,26 @@ char *Z3SolverImpl::getConstraintLog(const Query &query) {
     }
   }
 
-  ::Z3_ast *assumptionsArray = NULL;
-  int numAssumptions = assumptions.size();
-  if (numAssumptions) {
-    assumptionsArray = (::Z3_ast *)malloc(sizeof(::Z3_ast) * numAssumptions);
-    for (int index = 0; index < numAssumptions; ++index) {
-      assumptionsArray[index] = (::Z3_ast)assumptions[index];
-    }
-  }
-
+  std::vector<::Z3_ast> raw_assumptions{assumptions.cbegin(),
+                                        assumptions.cend()};
   ::Z3_string result = Z3_benchmark_to_smtlib_string(
       temp_builder.ctx,
       /*name=*/"Emited by klee::Z3SolverImpl::getConstraintLog()",
       /*logic=*/"",
       /*status=*/"unknown",
       /*attributes=*/"",
-      /*num_assumptions=*/numAssumptions,
-      /*assumptions=*/assumptionsArray,
+      /*num_assumptions=*/raw_assumptions.size(),
+      /*assumptions=*/raw_assumptions.size() ? raw_assumptions.data() : nullptr,
       /*formula=*/formula);
-
-  if (numAssumptions)
-    free(assumptionsArray);
 
   // We need to trigger a dereference before the `temp_builder` gets destroyed.
   // We do this indirectly by emptying `assumptions` and assigning to
   // `formula`.
+  raw_assumptions.clear();
   assumptions.clear();
   formula = Z3ASTHandle(NULL, temp_builder.ctx);
-  // Client is responsible for freeing the returned C-string
-  return strdup(result);
+
+  return {result};
 }
 
 bool Z3SolverImpl::computeTruth(const Query &query, bool &isValid) {
@@ -266,7 +260,7 @@ bool Z3SolverImpl::internalRunSolver(
     Z3_solver_assert(builder->ctx, theSolver, builder->construct(constraint));
     constant_arrays_in_query.visit(constraint);
   }
-  ++stats::queries;
+  ++stats::solverQueries;
   if (objects)
     ++stats::queryCounterexamples;
 
@@ -321,6 +315,9 @@ bool Z3SolverImpl::internalRunSolver(
       ++stats::queriesValid;
     }
     return true; // success
+  }
+  if (runStatusCode == SolverImpl::SOLVER_RUN_STATUS_INTERRUPTED) {
+    raise(SIGINT);
   }
   return false; // failed
 }
@@ -399,6 +396,9 @@ SolverImpl::SolverRunStatus Z3SolverImpl::handleSolverResponse(
     }
     if (strcmp(reason, "unknown") == 0) {
       return SolverImpl::SOLVER_RUN_STATUS_FAILURE;
+    }
+    if (strcmp(reason, "interrupted from keyboard") == 0) {
+      return SolverImpl::SOLVER_RUN_STATUS_INTERRUPTED;
     }
     klee_warning("Unexpected solver failure. Reason is \"%s,\"\n", reason);
     abort();

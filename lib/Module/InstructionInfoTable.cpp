@@ -10,6 +10,9 @@
 #include "klee/Module/InstructionInfoTable.h"
 #include "klee/Config/Version.h"
 
+#include "klee/Support/CompilerWarning.h"
+DISABLE_WARNING_PUSH
+DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/DebugInfo.h"
@@ -25,6 +28,7 @@
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
+DISABLE_WARNING_POP
 
 #include <cstdint>
 #include <map>
@@ -112,11 +116,8 @@ public:
 
   std::unique_ptr<FunctionInfo> getFunctionInfo(const llvm::Function &Func) {
     auto asmLine = lineTable.at(reinterpret_cast<std::uintptr_t>(&Func));
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 9)
     auto dsub = Func.getSubprogram();
-#else
-    auto dsub = llvm::getDISubprogram(&Func);
-#endif
+
     if (dsub != nullptr) {
       auto path = dsub->getFilename();
       return std::make_unique<FunctionInfo>(FunctionInfo(

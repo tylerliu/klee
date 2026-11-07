@@ -12,6 +12,7 @@
 
 #include "klee/Config/Version.h"
 #include "klee/Core/Interpreter.h"
+#include "klee/Module/KCallable.h"
 
 //TODO: generalize for other LLVM versions like the above
 #include "llvm/Analysis/LoopInfo.h"
@@ -49,7 +50,7 @@ namespace klee {
   /// A global bytemask for all the memory of a program.
 using StateByteMask = std::map<const MemoryObject *, BitArray *>;
 
-  struct KFunction {
+  struct KFunction : public KCallable {
     llvm::Function *function;
 
     unsigned numArgs, numRegisters;
@@ -84,6 +85,17 @@ using StateByteMask = std::map<const MemoryObject *, BitArray *>;
 
     unsigned getArgRegister(unsigned index) { return index; }
 
+    llvm::StringRef getName() const override { return function->getName(); }
+
+    llvm::FunctionType *getFunctionType() const override {
+      return function->getFunctionType();
+    }
+
+    llvm::Value *getValue() const override { return function; }
+
+    static bool classof(const KCallable *callable) {
+      return callable->getKind() == CK_Function;
+    }
     bool insert(const llvm::Loop *loop,
                 const StateByteMask& forgetMask,
                 const ExecutionState& state);

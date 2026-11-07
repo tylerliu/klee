@@ -7,6 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+// NOTE: Make rlimit64 and off64_t available on Linux
+// https://www.gnu.org/software/libc/manual/html_node/Feature-Test-Macros.html
+#define _LARGEFILE64_SOURCE
+
 #ifdef __FreeBSD__
 #include "FreeBSD.h"
 #endif
@@ -22,6 +26,7 @@
 #ifndef __FreeBSD__
 #include <utmp.h>
 #endif
+
 #include <sys/mman.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
@@ -421,17 +426,24 @@ int umount2(const char *target, int flags) {
 int swapon(const char *path, int swapflags) __attribute__((weak));
 int swapon(const char *path, int swapflags) {
 #else
-int swapon(const char *path)__attribute__((weak));
-int swapon(const char *path)
-{
+int swapon(const char *path) __attribute__((weak));
+int swapon(const char *path) {
 #endif
   klee_warning("ignoring (EPERM)");
   errno = EPERM;
   return -1;
 }
 
+#ifndef __FreeBSD__
 int swapoff(const char *path) __attribute__((weak));
 int swapoff(const char *path) {
+#elif __FreeBSD_version < 1300523
+int swapoff(const char *path) __attribute__((weak));
+int swapoff(const char *path) {
+#else
+int swapoff(const char *path, u_int swapflags) __attribute__((weak));
+int swapoff(const char *path, u_int swapflags) {
+#endif
   klee_warning("ignoring (EPERM)");
   errno = EPERM;
   return -1;

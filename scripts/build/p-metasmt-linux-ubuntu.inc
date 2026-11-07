@@ -1,9 +1,6 @@
-setup_build_variables_metasmt() {
-  return 0
-}
-
 install_build_dependencies_metasmt() {
-  apt update -y
+  source "${DIR}/common-functions"
+  with_sudo apt update -y
 
   dependencies=(
     # libgmp, gperf (required by yices2)
@@ -20,12 +17,15 @@ install_build_dependencies_metasmt() {
     bison
     flex
     unzip
-    python
     autoconf
     python3
     curl
+    python-is-python3 # Need for old Z3
+    python3-pip
+    python3-toml
+    default-jre # Needed for ANTLR
   )
 
   #Install essential dependencies
-  apt -y --no-install-recommends install "${dependencies[@]}"
+  with_sudo apt -y --no-install-recommends install "${dependencies[@]}"
 }

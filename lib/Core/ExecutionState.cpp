@@ -49,11 +49,16 @@ using namespace llvm;
 using namespace klee;
 
 namespace {
-cl::opt<bool> DebugLogStateMerge("debug-log-state-merge");
+cl::opt<bool> DebugLogStateMerge(
+    "debug-log-state-merge", cl::init(false),
+    cl::desc("Debug information for underlying state merging (default=false)"),
+    cl::cat(MergeCat));
+  
 }
-
 namespace klee {
-  extern cl::opt<bool> UseIncompleteMerge;
+  extern cl::opt<bool> SingleObjectResolution; 
+
+extern cl::opt<bool> UseIncompleteMerge;
 }
 
 /***/
@@ -82,27 +87,20 @@ StackFrame::~StackFrame() { delete[] locals; }
 
 /***/
 
-ExecutionState::ExecutionState(KFunction *kf)
-    : pc(kf->instructions), 
-      prevPC(pc),
-      depth(0),
-      executionStateForLoopInProcess(nullptr),
-      ptreeNode(nullptr),
-      relevantSymbols(), 
-      doTrace(true), 
-      condoneUndeclaredHavocs(false), 
-      steppedInstructions(0),
-      bpf_calls(0),
-      instsSinceCovNew(0),
-      coveredNew(false),
-      forkDisabled(false) {
+ExecutionState::ExecutionState(KFunction *kf, MemoryManager *mm)
+    : pc(kf->instructions), prevPC(pc), doTrace(true), condoneUndeclaredHavocs(false), bpf_calls(0) {
   pushFrame(nullptr, kf);
+  setID();
+  if (mm->stackFactory && mm->heapFactory) {
+    stackAllocator = mm->stackFactory.makeAllocator();
+    heapAllocator = mm->heapFactory.makeAllocator();
+  }
 }
 
 ExecutionState::ExecutionState(const std::vector<ref<Expr> > &assumptions)
     : executionStateForLoopInProcess(nullptr),
       constraints(assumptions), 
-      ptreeNode(0), 
+      executionTreeNode(0), 
       relevantSymbols(), 
       doTrace(true),
       condoneUndeclaredHavocs(false), 
@@ -141,17 +139,23 @@ ExecutionState::ExecutionState(const ExecutionState &state)
       symPathOS(state.symPathOS),
 
       coveredLines(state.coveredLines),
-      ptreeNode(state.ptreeNode),
+      stackAllocator(state.stackAllocator),
+      heapAllocator(state.heapAllocator),
+      cexPreferences(state.cexPreferences),
+      base_addrs(state.base_addrs),
+      base_mos(state.base_mos),
       symbolics(state.symbolics),
       havocs(state.havocs), 
       havocNames(state.havocNames),
       arrayNames(state.arrayNames),
+      functionAddresses(state.functionAddresses),
       callPath(state.callPath),
       relevantSymbols(state.relevantSymbols), 
       doTrace(state.doTrace),
       condoneUndeclaredHavocs(state.condoneUndeclaredHavocs),
       openMergeStack(state.openMergeStack),
       steppedInstructions(state.steppedInstructions),
+      reused_symbols(state.reused_symbols),
       bpf_calls(state.bpf_calls),
       instsSinceCovNew(state.instsSinceCovNew),
       unwindingInformation(state.unwindingInformation
@@ -192,9 +196,33 @@ void ExecutionState::pushFrame(KInstIterator caller, KFunction *kf) {
 
 void ExecutionState::popFrame() {
   const StackFrame &sf = stack.back();
-  for (const auto * memoryObject : sf.allocas)
+  for (const auto *memoryObject : sf.allocas) {
+    deallocate(memoryObject);
     addressSpace.unbindObject(memoryObject);
+  }
   stack.pop_back();
+}
+
+void ExecutionState::deallocate(const MemoryObject *mo) {
+  if (SingleObjectResolution) {
+    auto mos_it = base_mos.find(mo->address);
+    if (mos_it != base_mos.end()) {
+      for (auto it = mos_it->second.begin(); it != mos_it->second.end(); ++it) {
+        base_addrs.erase(*it);
+      }
+      base_mos.erase(mos_it->first);
+    }
+  }
+
+  if (!stackAllocator || !heapAllocator)
+    return;
+
+  auto address = reinterpret_cast<void *>(mo->address);
+  if (mo->isLocal) {
+    stackAllocator.free(address, std::max(mo->size, mo->alignment));
+  } else {
+    heapAllocator.free(address, std::max(mo->size, mo->alignment));
+  }
 }
 
 void ExecutionState::addSymbolic(const MemoryObject *mo, const Array *array) {
@@ -468,7 +496,7 @@ void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
     std::stringstream AssStream;
     AssStream << std::setw(8) << std::setfill('0') << ii.assemblyLine;
     out << AssStream.str();
-    out << " in " << f->getName().str() << " (";
+    out << " in " << f->getName().str() << "(";
     // Yawn, we could go up and print varargs if we wanted to.
     unsigned index = 0;
     for (Function::arg_iterator ai = f->arg_begin(), ae = f->arg_end();
@@ -476,11 +504,15 @@ void ExecutionState::dumpStack(llvm::raw_ostream &out) const {
       if (ai != f->arg_begin())
         out << ", ";
 
-      out << ai->getName().str();
-      // XXX should go through function
+      if (ai->hasName())
+        out << ai->getName().str() << "=";
+
       ref<Expr> value = sf.locals[sf.kf->getArgRegister(index++)].value;
-      if (isa_and_nonnull<ConstantExpr>(value))
-        out << "=" << value;
+      if (isa_and_nonnull<ConstantExpr>(value)) {
+        out << value;
+      } else {
+        out << "symbolic";
+      }
     }
     out << ")";
     if (ii.file != "")
@@ -550,7 +582,7 @@ ExecutionState::readMemoryChunk(ref<Expr> addr, Expr::Width width,
   // FIXME: assume inbounds.
   ref<Expr> offset = mo->getOffsetExpr(address);
   assert(0 < width && "Can not read a zero-length value.");
-  return os->read(offset, width, circumventInaccessibility);
+  return os->read(cast<ConstantExpr>(offset)->getZExtValue(), width, circumventInaccessibility);
 }
 
 void ExecutionState::traceRet() {
@@ -614,12 +646,19 @@ void ExecutionState::traceArgPtr(ref<Expr> arg, Expr::Width width,
                                      constrs.begin(), constrs.end());
 }
 
+llvm::Function *ExecutionState::resolveFunction(uint64_t address) const {
+  const auto it = functionAddresses.find(address);
+  return it == functionAddresses.end() ? nullptr : it->second;
+}
+
 void ExecutionState::traceArgFunPtr(ref<Expr> arg, std::string name) {
   traceArgValue(arg, name);
   CallArg *argInfo = &callPath.back().args.back();
   argInfo->isPtr = true;
   ref<klee::ConstantExpr> address = cast<klee::ConstantExpr>(arg);
-  argInfo->funPtr = (Function *)address->getZExtValue();
+  argInfo->funPtr = resolveFunction(address->getZExtValue());
+  if (!argInfo->funPtr)
+    klee_error("PIX trace references an unknown function address");
 }
 
 void ExecutionState::traceArgPtrField(ref<Expr> arg, int offset,
@@ -834,8 +873,10 @@ void ExecutionState::traceExtraFPtr(ref<Expr> ptr, Expr::Width width,
   extraFPtr->prefix = prefix;
   extraFPtr->width = width;
   ref<klee::ConstantExpr> address = cast<klee::ConstantExpr>(ptr);
-  extraFPtr->funPtr = (Function *)address->getZExtValue();
+  extraFPtr->funPtr = resolveFunction(address->getZExtValue());
 
+  if (!extraFPtr->funPtr)
+    klee_error("PIX trace references an unknown function address");
   uint32_t fn_id = 0;
   llvm::StringRef fn_name = extraFPtr->funPtr->getName();
   if (name == "map_hash") {
@@ -1380,7 +1421,7 @@ LoopInProcess::LoopInProcess(const llvm::Loop *_loop,
       lastRoundUpdated(false) {
   // TODO: this can not belong here. It has nothing to do with execution state,
   // nor with ptree node.
-  restartState->ptreeNode = 0;
+  restartState->executionTreeNode = 0;
 }
 
 LoopInProcess::~LoopInProcess() {
@@ -1515,7 +1556,7 @@ void ExecutionState::dumpConstraints() const {
   }
   fname += ".txt";
   std::error_code Error;
-  llvm::raw_fd_ostream file(StringRef(fname.c_str()), Error, llvm::sys::fs::F_None);
+  llvm::raw_fd_ostream file(StringRef(fname.c_str()), Error, llvm::sys::fs::OF_None);
   if (Error) {
     printf("error opening file \"%s\".  KLEE may have run out of file "
            "descriptors: try to increase the maximum number of open file "
@@ -1539,4 +1580,8 @@ void ExecutionState::dumpConstraints() const {
 void ExecutionState::addConstraint(ref<Expr> e) {
   ConstraintManager c(constraints);
   c.addConstraint(e);
+}
+
+void ExecutionState::addCexPreference(const ref<Expr> &cond) {
+  cexPreferences = cexPreferences.insert(cond);
 }

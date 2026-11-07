@@ -21,7 +21,9 @@
 
 #include <list>
 #include <map>
+#include <memory>
 #include <ostream>
+#include <utility>
 #include <vector>
 
 using namespace klee;
@@ -257,11 +259,9 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
 
 // Breaks down a constraint into all of it's individual pieces, returning a
 // list of IndependentElementSets or the independent factors.
-//
-// Caller takes ownership of returned std::list.
-static std::list<IndependentElementSet>*
+static std::unique_ptr<std::list<IndependentElementSet>>
 getAllIndependentConstraintsSets(const Query &query) {
-  std::list<IndependentElementSet> *factors = new std::list<IndependentElementSet>();
+  auto factors = std::make_unique<std::list<IndependentElementSet>>();
   ConstantExpr *CE = dyn_cast<ConstantExpr>(query.expr);
   if (CE) {
     assert(CE && CE->isFalse() && "the expr should always be false and "
@@ -283,16 +283,14 @@ getAllIndependentConstraintsSets(const Query &query) {
   bool doneLoop = false;
   do {
     doneLoop = true;
-    std::list<IndependentElementSet> *done =
-        new std::list<IndependentElementSet>;
+    auto done = std::make_unique<std::list<IndependentElementSet>>();
     while (factors->size() > 0) {
       IndependentElementSet current = factors->front();
       factors->pop_front();
       // This list represents the set of factors that are separate from current.
       // Those that are not inserted into this list (queue) intersect with
       // current.
-      std::list<IndependentElementSet> *keep =
-          new std::list<IndependentElementSet>;
+      auto keep = std::make_unique<std::list<IndependentElementSet>>();
       while (factors->size() > 0) {
         IndependentElementSet compare = factors->front();
         factors->pop_front();
@@ -307,11 +305,9 @@ getAllIndependentConstraintsSets(const Query &query) {
         }
       }
       done->push_back(current);
-      delete factors;
-      factors = keep;
+      factors = std::move(keep);
     }
-    delete factors;
-    factors = done;
+    factors = std::move(done);
   } while (!doneLoop);
 
   return factors;
@@ -388,23 +384,22 @@ void calculateArrayReferences(const IndependentElementSet & ie,
 
 class IndependentSolver : public SolverImpl {
 private:
-  Solver *solver;
+  std::unique_ptr<Solver> solver;
 
 public:
-  IndependentSolver(Solver *_solver) 
-    : solver(_solver) {}
-  ~IndependentSolver() { delete solver; }
+  IndependentSolver(std::unique_ptr<Solver> solver)
+      : solver(std::move(solver)) {}
 
-  bool computeTruth(const Query&, bool &isValid);
-  bool computeValidity(const Query&, Solver::Validity &result);
-  bool computeValue(const Query&, ref<Expr> &result);
-  bool computeInitialValues(const Query& query,
-                            const std::vector<const Array*> &objects,
-                            std::vector< std::vector<unsigned char> > &values,
-                            bool &hasSolution);
-  SolverRunStatus getOperationStatusCode();
-  char *getConstraintLog(const Query&);
-  void setCoreSolverTimeout(time::Span timeout);
+  bool computeTruth(const Query &, bool &isValid) override;
+  bool computeValidity(const Query &, Solver::Validity &result) override;
+  bool computeValue(const Query &, ref<Expr> &result) override;
+  bool computeInitialValues(const Query &query,
+                            const std::vector<const Array *> &objects,
+                            std::vector<std::vector<unsigned char>> &values,
+                            bool &hasSolution) override;
+  SolverRunStatus getOperationStatusCode() override;
+  std::string getConstraintLog(const Query &) override;
+  void setCoreSolverTimeout(time::Span timeout) override;
 };
   
 bool IndependentSolver::computeValidity(const Query& query,
@@ -442,7 +437,7 @@ bool assertCreatedPointEvaluatesToTrue(
     std::vector<std::vector<unsigned char>> &values,
     std::map<const Array *, std::vector<unsigned char>> &retMap) {
   // _allowFreeValues is set to true so that if there are missing bytes in the
-  // assigment we will end up with a non ConstantExpr after evaluating the
+  // assignment we will end up with a non ConstantExpr after evaluating the
   // assignment and fail
   Assignment assign = Assignment(objects, values, /*_allowFreeValues=*/true);
 
@@ -478,11 +473,10 @@ bool IndependentSolver::computeInitialValues(const Query& query,
   // This is important in case we don't have any constraints but
   // we need initial values for requested array objects.
   hasSolution = true;
-  // FIXME: When we switch to C++11 this should be a std::unique_ptr so we don't need
-  // to remember to manually call delete
-  std::list<IndependentElementSet> *factors = getAllIndependentConstraintsSets(query);
 
-  //Used to rearrange all of the answers into the correct order
+  auto factors = getAllIndependentConstraintsSets(query);
+
+  // Used to rearrange all of the answers into the correct order
   std::map<const Array*, std::vector<unsigned char> > retMap;
   for (std::list<IndependentElementSet>::iterator it = factors->begin();
        it != factors->end(); ++it) {
@@ -498,11 +492,9 @@ bool IndependentSolver::computeInitialValues(const Query& query,
     if (!solver->impl->computeInitialValues(Query(tmp, ConstantExpr::alloc(0, Expr::Bool)),
                                             arraysInFactor, tempValues, hasSolution)){
       values.clear();
-      delete factors;
       return false;
     } else if (!hasSolution){
       values.clear();
-      delete factors;
       return true;
     } else {
       assert(tempValues.size() == arraysInFactor.size() &&
@@ -541,7 +533,6 @@ bool IndependentSolver::computeInitialValues(const Query& query,
     }
   }
   assert(assertCreatedPointEvaluatesToTrue(query, objects, values, retMap) && "should satisfy the equation");
-  delete factors;
   return true;
 }
 
@@ -549,7 +540,7 @@ SolverImpl::SolverRunStatus IndependentSolver::getOperationStatusCode() {
   return solver->impl->getOperationStatusCode();      
 }
 
-char *IndependentSolver::getConstraintLog(const Query& query) {
+std::string IndependentSolver::getConstraintLog(const Query& query) {
   return solver->impl->getConstraintLog(query);
 }
 
@@ -557,6 +548,8 @@ void IndependentSolver::setCoreSolverTimeout(time::Span timeout) {
   solver->impl->setCoreSolverTimeout(timeout);
 }
 
-Solver *klee::createIndependentSolver(Solver *s) {
-  return new Solver(new IndependentSolver(s));
+std::unique_ptr<Solver>
+klee::createIndependentSolver(std::unique_ptr<Solver> s) {
+  return std::make_unique<Solver>(
+      std::make_unique<IndependentSolver>(std::move(s)));
 }

@@ -5,11 +5,10 @@
 // RUN: %klee --output-dir=%t.klee-out --only-output-states-covering-new %t1.bc
 
 // We expect 4 different output states, one for each named value and one "other"
-// one with the prefered CEX. We verify this by using ktest-tool to dump the
+// one with the preferred CEX. We verify this by using ktest-tool to dump the
 // values, and then checking the output.
 //
-// RUN: /bin/sh -c "ktest-tool %t.klee-out/*.ktest" > %t.data-values
-// RUN: FileCheck < %t.data-values %s
+// RUN: %ktest-tool %t.klee-out/*.ktest | FileCheck %s
 
 // CHECK-DAG: object 0: int : 0
 // CHECK-DAG: object 0: int : 17

@@ -1,10 +1,14 @@
 # Build information for KLEE
+# Keep test options optional while forwarding them into Docker builds.
+KLEE_TEST_OPTIONS="${KLEE_TEST_OPTIONS:-}"
+
 required_variables_klee=(
   "COVERAGE"
   "KLEE_RUNTIME_BUILD"
   "USE_TCMALLOC"
   "USE_LIBCXX"
   "ENABLE_DOXYGEN"
+  "KLEE_TEST_OPTIONS"
 )
 
 required_variables_check_klee() {
@@ -16,13 +20,13 @@ required_variables_check_klee() {
 
 # On which artifacts does KLEE depend on
 artifact_dependency_klee(){
-  local dependencies=("llvm" "solvers" "gtest" "sqlite")
+  local dependencies=("llvm" "solvers" "gtest" "sqlite" "cmake")
   if [[ "${OS}" != "osx" ]]; then
     dependencies+=(uclibc)
   fi
 
-  [[ "${USE_TCMALLOC}" -eq 1 ]] && dependencies+=("tcmalloc")
-  [[ "${USE_LIBCXX}" -eq 1 ]] && dependencies+=("libcxx")
+  [[ "${USE_TCMALLOC:-}" -eq 1 ]] && dependencies+=("tcmalloc")
+  [[ "${USE_LIBCXX:-}" -eq 1 ]] && dependencies+=("libcxx")
 
   for d in "${dependencies[@]}"; do
     echo "${d}"
@@ -36,8 +40,8 @@ runtime_artifact_dependency_klee(){
   fi
   dependencies+=("llvm" "solvers" "gtest" "sqlite")
 
-  [[ "${USE_TCMALLOC}" -eq 1 ]] && dependencies+=("tcmalloc")
-  [[ "${USE_LIBCXX}" -eq 1 ]] && dependencies+=("libcxx")
+  [[ "${USE_TCMALLOC:-}" -eq 1 ]] && dependencies+=("tcmalloc")
+  [[ "${USE_LIBCXX:-}" -eq 1 ]] && dependencies+=("libcxx")
 
   for d in "${dependencies[@]}"; do
     echo "${d}"

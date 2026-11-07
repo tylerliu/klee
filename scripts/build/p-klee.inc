@@ -3,6 +3,7 @@ validate_build_config_klee() {
 }
 
 setup_build_variables_klee() {
+  source "${DIR}/common-functions"
   KLEE_SUFFIX="${LLVM_VERSION_SHORT}${SOLVER_SUFFIX}${SANITIZER_SUFFIX}"
   KLEE_BUILD_DIR="${BASE}/klee_build${KLEE_SUFFIX}"
   KLEE_SRC="$DIR/../../"
@@ -16,15 +17,19 @@ build_klee() {
   CMAKE_PREFIX_PATH=("")
 
   local CMAKE_ARGUMENTS=(
-    "-DLLVM_CONFIG_BINARY=${LLVM_CONFIG}"
-    "-DLLVMCC=${BITCODE_CC}"
-    "-DLLVMCXX=${BITCODE_CXX}"
+    "-DLLVM_DIR=${LLVM_INSTALL}"
     "-DGTEST_SRC_DIR=${GTEST_INSTALL_PATH}"
     "-DENABLE_UNIT_TESTS=TRUE"
     "-DENABLE_SYSTEM_TESTS=TRUE"
     "-DENABLE_DOXYGEN=${ENABLE_DOXYGEN}"
     "-DLIT_ARGS=-v"
   )
+
+  if [ -n "${KLEE_TEST_OPTIONS:-}" ]; then
+    CMAKE_ARGUMENTS+=(
+      "-DLIT_ARGS=-v;--param;klee_opts=${KLEE_TEST_OPTIONS}"
+    )
+  fi
 
 
 ###############################################################################
@@ -33,13 +38,11 @@ build_klee() {
 
   if [ "${UCLIBC_VERSION}" != "0" ]; then
     CMAKE_ARGUMENTS+=(
-      "-DENABLE_KLEE_UCLIBC=TRUE"
       "-DKLEE_UCLIBC_PATH=${BASE}/klee-uclibc-${LLVM_VERSION_SHORT}"
       "-DENABLE_POSIX_RUNTIME=TRUE"
     )
   else
     CMAKE_ARGUMENTS+=(
-      "-DENABLE_KLEE_UCLIBC=FALSE"
       "-DENABLE_POSIX_RUNTIME=FALSE"
     )
   fi
@@ -52,10 +55,7 @@ if [ "${USE_LIBCXX}" -eq 1 ]; then
   CMAKE_ARGUMENTS+=(
     "-DENABLE_KLEE_LIBCXX=TRUE"
     "-DKLEE_LIBCXX_DIR=${LIBCXX_INSTALL}"
-    "-DKLEE_LIBCXX_INCLUDE_DIR=${LIBCXX_INSTALL}/include/c++/v1"
-  )
-  local LLVM_VERSION_MAJOR="${LLVM_VERSION/.*/}"
-  [[ "${LLVM_VERSION_MAJOR}" -ge 8 ]] && CMAKE_ARGUMENTS+=(
+    "-DKLEE_LIBCXX_INCLUDE_DIR=${LIBCXX_INSTALL}/include/"
     "-DENABLE_KLEE_EH_CXX=TRUE"
     "-DKLEE_LIBCXXABI_SRC_DIR=${LIBCXX_SRC}/libcxxabi"
   )
@@ -164,12 +164,18 @@ fi
     CXX_FLAGS+=("${SANITIZER_CXX_FLAGS[@]}")
     LD_FLAGS+=("${SANITIZER_LD_FLAGS[@]}")
 
+    SANITIZER_DIR="$(cd "$(dirname "${SANITIZER_BITCODE_CC}")" && pwd)"
+
     CMAKE_ARGUMENTS+=(
       "-DCMAKE_C_COMPILER=${SANITIZER_C_COMPILER}"
       "-DCMAKE_CXX_COMPILER=${SANITIZER_CXX_COMPILER}"
     )
   fi
 
+  CMAKE_ARGUMENTS+=(
+    "-DLLVMCC=${BITCODE_CC}"
+    "-DLLVMCXX=${BITCODE_CXX}"
+  )
 
 
   mkdir -p "${KLEE_BUILD_DIR}" || return 1
@@ -185,7 +191,9 @@ fi
       echo "CMAKE_PREFIX_PATH=\"${cmake_concatenated}\" \\"
     fi
 
-    echo "cmake ${CMAKE_ARGUMENTS[*]} \"${KLEE_SRC}\""
+    printf 'cmake'
+    printf ' %q' "${CMAKE_ARGUMENTS[@]}" "${KLEE_SRC}"
+    printf '\n'
   } > "${KLEE_BUILD_DIR}/.build_command"
 
   source "${KLEE_BUILD_DIR}/.build_command"

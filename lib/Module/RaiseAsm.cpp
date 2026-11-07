@@ -11,23 +11,24 @@
 #include "klee/Config/Version.h"
 #include "klee/Support/ErrorHandling.h"
 
+#include "klee/Support/CompilerWarning.h"
+DISABLE_WARNING_PUSH
+DISABLE_WARNING_DEPRECATED_DECLARATIONS
+#include "llvm/CodeGen/TargetLowering.h"
+#include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/Support/Host.h"
-#include "llvm/Support/TargetRegistry.h"
-#include "llvm/Support/raw_ostream.h"
-#if LLVM_VERSION_CODE >= LLVM_VERSION(6, 0)
-#include "llvm/CodeGen/TargetLowering.h"
-#include "llvm/CodeGen/TargetSubtargetInfo.h"
-#include "llvm/Target/TargetMachine.h"
+#if LLVM_VERSION_CODE >= LLVM_VERSION(16, 0)
+#include "llvm/TargetParser/Host.h"
 #else
-#include "llvm/Target/TargetLowering.h"
-#include "llvm/Target/TargetMachine.h"
-#include "llvm/Target/TargetSubtargetInfo.h"
+#include "llvm/Support/Host.h"
 #endif
+#include "llvm/MC/TargetRegistry.h"
+#include "llvm/Target/TargetMachine.h"
+DISABLE_WARNING_POP
 
 using namespace llvm;
 using namespace klee;
@@ -48,11 +49,7 @@ bool RaiseAsmPass::runOnInstruction(Module &M, Instruction *I) {
   if (!ci)
     return false;
 
-#if LLVM_VERSION_CODE >= LLVM_VERSION(8, 0)
   InlineAsm *ia = dyn_cast<InlineAsm>(ci->getCalledOperand());
-#else
-  InlineAsm *ia = dyn_cast<InlineAsm>(ci->getCalledValue());
-#endif
   if (!ia)
     return false;
 
@@ -63,19 +60,14 @@ bool RaiseAsmPass::runOnInstruction(Module &M, Instruction *I) {
   if (TLI->ExpandInlineAsm(ci))
     return true;
 
-  if (triple.getArch() == llvm::Triple::x86_64 &&
-      (triple.getOS() == llvm::Triple::Linux ||
-       triple.getOS() == llvm::Triple::Darwin ||
-       triple.getOS() == llvm::Triple::FreeBSD)) {
+  if ((triple.getArch() == llvm::Triple::x86 ||
+       triple.getArch() == llvm::Triple::x86_64) &&
+      (triple.isOSLinux() || triple.isMacOSX() || triple.isOSFreeBSD())) {
 
     if (ia->getAsmString() == "" && ia->hasSideEffects() &&
         ia->getFunctionType()->getReturnType()->isVoidTy()) {
       IRBuilder<> Builder(I);
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 9)
       Builder.CreateFence(llvm::AtomicOrdering::SequentiallyConsistent);
-#else
-      Builder.CreateFence(llvm::SequentiallyConsistent);
-#endif
       I->eraseFromParent();
       return true;
     }
@@ -86,28 +78,32 @@ bool RaiseAsmPass::runOnInstruction(Module &M, Instruction *I) {
 
 bool RaiseAsmPass::runOnModule(Module &M) {
   bool changed = false;
-
   std::string Err;
-  std::string HostTriple = llvm::sys::getDefaultTargetTriple();
-  const Target *NativeTarget = TargetRegistry::lookupTarget(HostTriple, Err);
+
+  // Use target triple from the module if possible.
+  std::string TargetTriple = M.getTargetTriple();
+  if (TargetTriple.empty())
+    TargetTriple = llvm::sys::getDefaultTargetTriple();
+  const Target *Target = TargetRegistry::lookupTarget(TargetTriple, Err);
 
   TargetMachine * TM = 0;
-  if (NativeTarget == 0) {
-    klee_warning("Warning: unable to select native target: %s", Err.c_str());
+  if (Target == 0) {
+    klee_warning("Warning: unable to select target: %s", Err.c_str());
     TLI = 0;
   } else {
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 9)
-    TM = NativeTarget->createTargetMachine(HostTriple, "", "", TargetOptions(),
-        None);
-    TLI = TM->getSubtargetImpl(*(M.begin()))->getTargetLowering();
+#if LLVM_VERSION_CODE >= LLVM_VERSION(16, 0)
+    TM = Target->createTargetMachine(TargetTriple, "", "", TargetOptions(),
+                                     std::nullopt);
 #else
-    TM = NativeTarget->createTargetMachine(HostTriple, "", "", TargetOptions());
-    TLI = TM->getSubtargetImpl(*(M.begin()))->getTargetLowering();
+    TM = Target->createTargetMachine(TargetTriple, "", "", TargetOptions(),
+                                     None);
 #endif
 
-    triple = llvm::Triple(HostTriple);
+    TLI = TM->getSubtargetImpl(*(M.begin()))->getTargetLowering();
+
+    triple = llvm::Triple(TargetTriple);
   }
-  
+
   for (Module::iterator fi = M.begin(), fe = M.end(); fi != fe; ++fi) {
     for (Function::iterator bi = fi->begin(), be = fi->end(); bi != be; ++bi) {
       for (BasicBlock::iterator ii = bi->begin(), ie = bi->end(); ii != ie;) {
