@@ -6,6 +6,8 @@
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 
+#include <cinttypes>
+
 using namespace llvm;
 using namespace klee;
 
@@ -79,8 +81,8 @@ bool klee::updateDiffMask(StateByteMask *mask, const AddressSpace &refValues,
                  "invariant analysis:\n"
                  "  name: %s\n  location: %s\n"
                  "  local: %s\n  global: %s\n"
-                 "  fixed: %s\n  size: %u\n"
-                 "  address: 0x%lx\n  metadata: %s",
+                 "  fixed: %s\n  size: %zu\n"
+                 "  address: 0x%" PRIxPTR "\n  metadata: %s",
                  obj->name.c_str(), obj->allocSite->getName().str().c_str(),
                  obj->isLocal ? "true" : "false",
                  obj->isGlobal ? "true" : "false",

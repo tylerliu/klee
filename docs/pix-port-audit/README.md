@@ -143,3 +143,43 @@ mock tools and never install packages or build LLVM. ShellCheck was reproduced
 with `koalaman/shellcheck:v0.11.0`, image digest recorded in the follow-up receipt.
 A full executor regression was not repeated for this build-fragment-only fix;
 the Docker comparison revalidates the original tested port files.
+
+## Follow-up: LLVM dominator header and loop diagnostic formats (2026-11-08)
+
+`compiler-followup.json` binds two further source changes to exact Git blobs.
+The verifier permits only `lib/Module/KModule.cpp` and
+`lib/Module/LoopAnalysis.cpp` for this receipt; all other source remains bound
+to the sealed merge plus the earlier build-fragment receipt.
+
+KFunction's loop analysis constructed `DominatorTreeBase<BasicBlock, false>`
+without its defining header. The failure was reproduced with LLVM 15.0.7 and
+GCC 13.3 in Docker. An explicit `llvm/IR/Dominators.h` include resolves it.
+`DEBUG_TYPE` is defined after the includes to avoid LLVM 15's internal macro
+collision. Loop analysis behavior is unchanged. Its memory-object diagnostic
+now uses `%zu` for `size_t` and `PRIxPTR` for `uintptr_t`, with `<cinttypes>`.
+
+Both corrected translation units compile against LLVM 15.0.7/GCC 13.3 and
+LLVM 18.1.8/GCC 11.4. The original `%u` warning is reproduced as an error using
+`-Werror=format`, and the fix passes that check. LLVM 18's baseline KModule
+still compiled through transitive includes; this is a header compatibility
+failure rather than evidence that the previously tested 18.1.3 build failed.
+
+`test-compiler-headers.sh` records the translation-unit probe. It runs inside
+Docker with the KLEE checkout mounted at `/src`, generated KLEE include files
+at `/config/include`, and pre-fix copies from commit `301d07e8` at
+`/config/before-KModule.cpp` and `/config/before-LoopAnalysis.cpp`. Arguments are
+the LLVM install prefix and `yes`/`no` for an expected baseline KModule failure.
+The probe adjusts generated LLVM version constants to the selected headers;
+it does not substitute LLVM APIs or invoke native external functions from KLEE.
+
+The final LLVM 18.1.3 executor is rebuilt as
+`pix-klee-test:llvm18-compiler-fix`; its exact image ID and refreshed PIX patch
+SHA256 are recorded in the receipt. Use this image for `verify.py --docker-image`
+to compare all 144 port files after the two-file fix. The older image remains
+an immutable baseline and intentionally differs in these two files.
+
+The final rebuilt image passed the full PIX smoke suite: 43 unit tests, 423
+system tests, two expected failures, 29 unsupported tests, NAT/XDP symbolic
+execution (21/33 witnesses), seven native NF builds, virtual-port startup,
+contract ABI, havoc replay and 124 clean accelerator witnesses. The refreshed
+PIX patch also applies cleanly to the pinned upstream KLEE commit.

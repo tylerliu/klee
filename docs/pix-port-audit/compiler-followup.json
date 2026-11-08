@@ -1,0 +1,47 @@
+{
+  "base_merge": "a9e144fc70f5d5de0b11062a183d4255159ab1f0",
+  "changes": {
+    "lib/Module/KModule.cpp": {
+      "after": {
+        "blob": "b7a5bd9d458ef49fa4b1b336a2b7e6e94dee161d",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "c51c9880b472c75de83a7c5bba039a722709be26",
+        "mode": "100644"
+      }
+    },
+    "lib/Module/LoopAnalysis.cpp": {
+      "after": {
+        "blob": "1206130b84ab06b9bf9c9d91f00dbfb25646a699",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "ab2fe9ba4ece092213d24a46df55009739b32d03",
+        "mode": "100644"
+      }
+    }
+  },
+  "format": 1,
+  "purpose": "Explicit LLVM dominator header and portable invariant diagnostic format specifiers",
+  "validation": {
+    "executor_image": "pix-klee-test:llvm18-compiler-fix",
+    "executor_image_id": "sha256:2179c79f058655338cada6b80ad8b233f034628809f2a1ab00174bc86a9ea864",
+    "full_pix_smoke": {
+      "accelerator_witnesses": 124,
+      "expected_failures": 2,
+      "havoc_replay": "pass",
+      "nat_witnesses": 21,
+      "native_nf_builds": 7,
+      "native_virtual_port_startup": "pass",
+      "system_pass": 423,
+      "unit_pass": 43,
+      "unsupported": 29,
+      "xdp_witnesses": 33
+    },
+    "gcc11_llvm18": "Both fixed translation units compile with LLVM 18.1.8 and format checking; baseline KModule still compiled through transitive headers",
+    "gcc13_llvm15": "Baseline missing-dominator failure reproduced; both fixed translation units compile with LLVM 15.0.7 and format checking",
+    "pix_patch_applies_to_pinned_upstream": true,
+    "pix_patch_sha256": "c48f398de34528a65a3fac24d99d9ba0ef6286a20cfffef403f0dfd35e9c9399"
+  }
+}

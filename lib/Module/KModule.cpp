@@ -7,8 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "KModule"
-
 #include "klee/Module/KModule.h"
 
 #include "ModuleHelper.h"
@@ -31,10 +29,13 @@
 DISABLE_WARNING_PUSH
 DISABLE_WARNING_DEPRECATED_DECLARATIONS
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
 DISABLE_WARNING_POP
 
 #include <sstream>
+
+#define DEBUG_TYPE "KModule"
 
 using namespace llvm;
 using namespace klee;
