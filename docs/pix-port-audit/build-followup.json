@@ -1,0 +1,217 @@
+{
+  "base_merge": "a9e144fc70f5d5de0b11062a183d4255159ab1f0",
+  "changes": {
+    "scripts/build/p-clang-linux-arch.inc": {
+      "after": {
+        "blob": "e3b67c799af9b6013d27d6eee8141f6180d0a403",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "bd83d7c463fef1dc926b26189f6ba543740f6cb3",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/p-clang-linux-debian.inc": {
+      "after": {
+        "blob": "9b723aedde784ef808f9275675b34eb40ee619b0",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "85f02c143249f27c47e0c84f6aa69ced9cad49ad",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/p-clang-linux-ubuntu.inc": {
+      "after": {
+        "blob": "9b723aedde784ef808f9275675b34eb40ee619b0",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "85f02c143249f27c47e0c84f6aa69ced9cad49ad",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/p-clang-linux.inc": {
+      "after": {
+        "blob": "f5264b51fd8e24ae28d613c78324e97ac680b23d",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "519333c65f7208ae16198f917821885f550498ae",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/p-clang-osx.inc": {
+      "after": {
+        "blob": "183a43c7aa9b4341b3d8fd8fa22584323f3658cb",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "10621f1d8427bf18ca44132aa95baabc0ffe1291",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/p-clang.inc": {
+      "after": {
+        "blob": "c5a3e58a9aac90a18736fcb5d2048f4b019ac6de",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "1b4593c94cdf84ab2a51840bce9a23384e6e8a25",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/p-cmake-osx.inc": {
+      "after": {
+        "blob": "d13c38cc4ad5a413b967ae9634a99c0aee8c4fb1",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "52a92004d2bed171062f6475fe2a7d7d5e352f57",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/p-klee.inc": {
+      "after": {
+        "blob": "e1aac89b28f91d35871e467b557033e617d98979",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "56950c246cf6917f79f569e4f031f970ec3a2996",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/p-llvm-linux-arch.inc": {
+      "after": {
+        "blob": "20c1e5b8e34135d811b7cd2974b44531053eb436",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "d2ddefbb0c2f0d28ee779c21d0c813eb9449387d",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/p-llvm-linux-debian.inc": {
+      "after": {
+        "blob": "68813bc43f5e63ed36d626e7320d6790cdfa726a",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "29d102e07e6b700d6bfbb45503632496265912e9",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/p-llvm-linux-ubuntu.inc": {
+      "after": {
+        "blob": "80e5014f6d22ed1793ac39ca7f9dbdce4e94587e",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "29d102e07e6b700d6bfbb45503632496265912e9",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/p-llvm-osx.inc": {
+      "after": {
+        "blob": "44091798acd27a5c828b2792697f979a196182c7",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "020c52a18adccd0cb7853a4f8b31e15e5ea4be90",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/p-llvm.inc": {
+      "after": {
+        "blob": "256bb48e72535a8580fc7d014d6e8a3b1155a35d",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "901b6e97dcf6abfcd4eee6cbb76ea6c74fd11728",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/p-sanitizer-linux.inc": {
+      "after": {
+        "blob": "bb74c0d04e2184a28393936f406baa1460eb3373",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "e40169a2b8b5612a5f46dee5a08ba7c557746ede",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/v-clang.inc": {
+      "after": {
+        "blob": "192210606cf79f14b3f3cdd6beb45febde340b49",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "7d919a4d84feadff959cc92bf482c30c34865daa",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/v-cmake.inc": {
+      "after": {
+        "blob": "dc043b131a1c8ea4d7b3cb6b0d05ab745900e8bd",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "a69c90b92bb48d66e2d9e9003404305300b6198a",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/v-llvm.inc": {
+      "after": {
+        "blob": "fcf1de6fa2b89331f5e1e22981e66ee840a10cfb",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "34037d59223f1e2ada792db9491a37ed45f977e9",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/v-sqlite.inc": {
+      "after": {
+        "blob": "df8ccdaf66e42df5f56718c11cdc49ac4054aa0e",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "17f248cc39dafe0a19dca33341253ecb66aa8205",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/v-stp.inc": {
+      "after": {
+        "blob": "3c82548e406cb7712ed5cf90f465784954a66812",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "17a84acc61bdf6bfd20237a06abbae353e0efc1b",
+        "mode": "100644"
+      }
+    },
+    "scripts/build/v-z3.inc": {
+      "after": {
+        "blob": "6e6411abf44dd77cec98ca706555a54094cf08cc",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "92e68658b72160fb33dae314f44844326d3d951c",
+        "mode": "100644"
+      }
+    }
+  },
+  "format": 1,
+  "purpose": "Resolve the reported differential ShellCheck diagnostics without changing executor/runtime code",
+  "validation": {
+    "baseline_diagnostics": 113,
+    "behavior_tests": "bash docs/pix-port-audit/test-build-shell-fixes.sh in pix-klee-test:llvm18-dpdk25.11",
+    "new_diagnostics": 0,
+    "remaining_preexisting_diagnostics": 49,
+    "reported_diagnostics_resolved": 53,
+    "scan": "scripts/build/*.inc and docs/pix-port-audit/test-build-shell-fixes.sh at warning severity",
+    "shellcheck_image": "koalaman/shellcheck@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d",
+    "shellcheck_version": "0.11.0"
+  }
+}

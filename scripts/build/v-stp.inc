@@ -5,6 +5,8 @@ required_variables_stp=(
 )
 
 # On which artifacts does STP depend on
+# Consumed by the dynamically sourced build.sh component interface.
+# shellcheck disable=SC2034
 artifact_dependency_stp=("sanitizer")
 
 artifact_dependency_stp() {

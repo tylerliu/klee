@@ -15,10 +15,14 @@ setup_build_variables_llvm() {
   LLVM_SUFFIX=""
 
   local BuildMode=""
-  local enable_optimized=$(to_bool "${ENABLE_OPTIMIZED}")
-  local enable_debug=$(to_bool "${ENABLE_DEBUG}")
-  local disable_assertions=$(to_bool "${DISABLE_ASSERTIONS}")
-  local requires_rtti=$(to_bool "${REQUIRES_RTTI}")
+  local enable_optimized
+  enable_optimized=$(to_bool "${ENABLE_OPTIMIZED}") || return 1
+  local enable_debug
+  enable_debug=$(to_bool "${ENABLE_DEBUG}") || return 1
+  local disable_assertions
+  disable_assertions=$(to_bool "${DISABLE_ASSERTIONS}") || return 1
+  local requires_rtti
+  requires_rtti=$(to_bool "${REQUIRES_RTTI}") || return 1
 
   if [[ "${enable_optimized}" == "1" ]]; then
     LLVM_SUFFIX+="_O"
@@ -53,7 +57,6 @@ setup_build_variables_llvm() {
   LLVM_BUILD="${LLVM_SRC_BASE}-build${LLVM_SUFFIX}"
   LLVM_INSTALL="${LLVM_SRC_BASE}-install${LLVM_SUFFIX}"
   LLVM_BIN="${LLVM_INSTALL}/bin"
-  LLVM_BUILD_BIN="${LLVM_BUILD}/bin"
 
   if [[ "${SANITIZER_BUILD:-}" == "memory" ]]; then
     LLVM_BUILD_LIBCXX="${LLVM_INSTALL}-libcxx"
@@ -61,7 +64,11 @@ setup_build_variables_llvm() {
 
 
   LLVM_CONFIG="${LLVM_BIN}/llvm-config"
+  # Consumed by the dynamically sourced build.sh component interface.
+  # shellcheck disable=SC2034
   BITCODE_CC="${LLVM_BIN}/clang"
+  # Consumed by the dynamically sourced build.sh component interface.
+  # shellcheck disable=SC2034
   BITCODE_CXX="${LLVM_BIN}/clang++"
 }
 
@@ -88,10 +95,14 @@ download_llvm() {
 
 
 configure_llvm() {
-  local enable_optimized=$(to_bool "${ENABLE_OPTIMIZED}")
-  local enable_debug=$(to_bool "${ENABLE_DEBUG}")
-  local disable_assertions=$(to_bool "${DISABLE_ASSERTIONS}")
-  local requires_rtti=$(to_bool "${REQUIRES_RTTI}")
+  local enable_optimized
+  enable_optimized=$(to_bool "${ENABLE_OPTIMIZED}") || return 1
+  local enable_debug
+  enable_debug=$(to_bool "${ENABLE_DEBUG}") || return 1
+  local disable_assertions
+  disable_assertions=$(to_bool "${DISABLE_ASSERTIONS}") || return 1
+  local requires_rtti
+  requires_rtti=$(to_bool "${REQUIRES_RTTI}") || return 1
 
   # Configure; build; and install
   mkdir -p "${LLVM_BUILD}"
@@ -108,7 +119,7 @@ configure_llvm() {
     # Skip building if already finished
     if [[ ! -f "${LLVM_BUILD_LIBCXX}/.build_finished" ]]; then
       mkdir -p "${LLVM_BUILD_LIBCXX}"
-      cd "${LLVM_BUILD_LIBCXX}"
+      cd "${LLVM_BUILD_LIBCXX}" || return 1
       cmake -GNinja "${LLVM_SRC_BASE}/llvm" \
         -DCMAKE_BUILD_TYPE=Release \
         -DLLVM_ENABLE_PROJECTS="libcxx;libcxxabi" \
@@ -126,7 +137,7 @@ configure_llvm() {
     LLVM_LINKER_FLAGS="-lc++abi -Wl,--rpath=${LLVM_BUILD_LIBCXX}/lib -L${LLVM_BUILD_LIBCXX}/lib -fsanitize=memory -nostdinc++"
   fi
 
-  cd "${LLVM_BUILD}"
+  cd "${LLVM_BUILD}" || return 1
 
   # Select components to build
   local ENABLED_LLVM_PROJECTS
@@ -251,7 +262,7 @@ build_llvm() {
 }
 
 install_llvm() {
-  cd "${LLVM_BUILD}"
+  cd "${LLVM_BUILD}" || return 1
   ninja install
   # Remove debug information from binaries
   strip "${LLVM_INSTALL}/bin/"* || /bin/true

@@ -14,8 +14,16 @@ is_installed_llvm() {
 
 setup_artifact_variables_llvm() {
   LLVM_VERSION_MAJOR="${LLVM_VERSION/.*/}"
+  # Consumed by the dynamically sourced build.sh component interface.
+  # shellcheck disable=SC2034
   LLVM_CONFIG="/opt/homebrew/opt/llvm@${LLVM_VERSION_MAJOR}/bin/llvm-config"
+  # Consumed by the dynamically sourced build.sh component interface.
+  # shellcheck disable=SC2034
   BITCODE_CC="/opt/homebrew/opt/llvm@${LLVM_VERSION_MAJOR}/bin/clang"
+  # Consumed by the dynamically sourced build.sh component interface.
+  # shellcheck disable=SC2034
   BITCODE_CXX="/opt/homebrew/opt/llvm@${LLVM_VERSION_MAJOR}/bin/clang++"
+  # Consumed by the dynamically sourced build.sh component interface.
+  # shellcheck disable=SC2034
   LLVM_INSTALL="/opt/homebrew/opt/llvm@${LLVM_VERSION_MAJOR}/"
 }

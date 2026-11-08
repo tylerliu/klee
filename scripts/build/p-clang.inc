@@ -8,13 +8,17 @@ local_setup_build_variables_clang() {
   LLVM_SUFFIX+="_RTTI"
 
   LLVM_SRC_BASE="${BASE}/llvm-${LLVM_VERSION_SHORT}"
-  LLVM_BUILD="${LLVM_SRC_BASE}-build${LLVM_SUFFIX}"
   LLVM_INSTALL="${LLVM_SRC_BASE}-install${LLVM_SUFFIX}"
   LLVM_BIN="${LLVM_INSTALL}/bin"
-  LLVM_BUILD_BIN="${LLVM_BUILD}/bin"
 
+  # Consumed by the dynamically sourced build.sh component interface.
+  # shellcheck disable=SC2034
   LLVM_CONFIG="${LLVM_BIN}/llvm-config"
+  # Consumed by the dynamically sourced build.sh component interface.
+  # shellcheck disable=SC2034
   BITCODE_CC="${LLVM_BIN}/clang"
+  # Consumed by the dynamically sourced build.sh component interface.
+  # shellcheck disable=SC2034
   BITCODE_CXX="${LLVM_BIN}/clang++"
 }
 
@@ -34,8 +38,6 @@ get_build_artifacts_clang() {
 
 # Check if the binary artifact is installed
 is_installed_clang() {
-  local LLVM_VERSION_MAJOR="${LLVM_VERSION/.*/}"
-  local version="${LLVM_VERSION_MAJOR}"
 
   (
     local_setup_build_variables_clang
@@ -47,8 +49,6 @@ is_installed_clang() {
 setup_artifact_variables_clang() {
   is_installed_clang || return 1
 
-  local LLVM_VERSION_MAJOR="${LLVM_VERSION/.*/}"
-  local version="${LLVM_VERSION_MAJOR}"
   local_setup_build_variables_clang
   echo "${LLVM_INSTALL}"
 }

@@ -15,7 +15,11 @@ is_installed_clang() {
 setup_artifact_variables_clang() {
   local LLVM_VERSION_MAJOR="${LLVM_VERSION/.*/}"
 
+  # Consumed by the dynamically sourced build.sh component interface.
+  # shellcheck disable=SC2034
   BITCODE_CC="/usr/local/opt/llvm@${LLVM_VERSION_MAJOR}/bin/clang"
+  # Consumed by the dynamically sourced build.sh component interface.
+  # shellcheck disable=SC2034
   BITCODE_CXX="/usr/local/opt/llvm@${LLVM_VERSION_MAJOR}/bin/clang++"
 
   LLVM_CONFIG="/usr/local/opt/llvm@${LLVM_VERSION_MAJOR}/bin/llvm-config"

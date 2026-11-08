@@ -164,7 +164,6 @@ fi
     CXX_FLAGS+=("${SANITIZER_CXX_FLAGS[@]}")
     LD_FLAGS+=("${SANITIZER_LD_FLAGS[@]}")
 
-    SANITIZER_DIR="$(cd "$(dirname "${SANITIZER_BITCODE_CC}")" && pwd)"
 
     CMAKE_ARGUMENTS+=(
       "-DCMAKE_C_COMPILER=${SANITIZER_C_COMPILER}"

@@ -103,3 +103,43 @@ when it has been published, or use the local branch in this repository.
 `capture_merge.py` checks HEAD and MERGE_HEAD before recording the index.
 Git's merge algorithm/version may affect automatically merged blobs; the
 recorded parent blobs and accepted production-tree fingerprint are fixed.
+
+## Follow-up: differential ShellCheck fixes (2026-11-08)
+
+The original merge and `manifest.json` remain immutable. `build-followup.json`
+records exact before/after Git blob IDs and modes for 20 build fragments. The
+verifier accepts precisely these changes in `scripts/build/*.inc` and continues
+to reject unrecorded changes anywhere outside audit metadata. The executor,
+runtime, CMake files, C/C++ tests and the 144 Docker port files are unchanged.
+
+The supplied CI log had 53 warnings in its **NEEDS INSPECTION** section; the
+preceding **Fixed defects** section describes resolved baseline diagnostics.
+All 53 reported warnings are resolved. The warning-level ShellCheck 0.11.0 scan
+of all build fragments and the new regression script decreases from 113 to 49
+diagnostics, with no newly introduced diagnostics. The remaining diagnostics
+predate this follow-up; this does not claim a globally clean repository scan.
+No workflow severity or global ShellCheck exclusions were changed.
+
+Individual SC2034 directives document variables consumed across dynamically
+sourced component interfaces. Genuinely unused assignments were removed. Ubuntu,
+Debian and Arch LLVM checks now use the supplied strict-mode argument; shared
+mode probing still propagates command failure without storing an unused value.
+LLVM configure/install functions stop on failed directory changes, and boolean
+conversion failures are no longer hidden by `local` declarations.
+
+Run the focused behavioral tests in the executor container:
+
+```sh
+docker run --rm --network=none \
+  --mount "type=bind,source=$PWD,target=/src,readonly" \
+  pix-klee-test:llvm18-dpdk25.11 \
+  bash /src/docs/pix-port-audit/test-build-shell-fixes.sh
+```
+
+The tests cover relaxed/strict LLVM checks across all three distributions,
+RTTI/assertion mismatches, shared-mode probe failures, mismatched LLVM versions,
+failed configure directory changes and invalid boolean conversions. They use
+mock tools and never install packages or build LLVM. ShellCheck was reproduced
+with `koalaman/shellcheck:v0.11.0`, image digest recorded in the follow-up receipt.
+A full executor regression was not repeated for this build-fragment-only fix;
+the Docker comparison revalidates the original tested port files.

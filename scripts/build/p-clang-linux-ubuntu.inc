@@ -56,6 +56,10 @@ setup_artifact_variables_clang() {
   bin_path="$(dirname "$(readlink -f "${bin_path}")")"
   [[ -z "${bin_path}" ]] && return 1
 
+  # Consumed by the dynamically sourced build.sh component interface.
+  # shellcheck disable=SC2034
   BITCODE_CC="${bin_path}/clang"
+  # Consumed by the dynamically sourced build.sh component interface.
+  # shellcheck disable=SC2034
   BITCODE_CXX="${bin_path}/clang++"
 }

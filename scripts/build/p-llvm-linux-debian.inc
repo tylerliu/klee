@@ -92,8 +92,7 @@ install_binary_artifact_llvm() {
 }
 
 check_llvm_config_version() {
-    local check_mode=1
-    strict_mode="$1" # if llvm-config should be checked strictly
+    local check_mode="$1" # if llvm-config should be checked strictly
     local lc=""
     lc="$2" # path to llvm-config
 
@@ -122,15 +121,12 @@ check_llvm_config_version() {
     rtti="$(${lc} --has-rtti)"
     local assertion
     assertion="$(${lc} --assertion-mode)"
-    local build_mode
-    build_mode="$(${lc} --build-mode)"
 
     # Check requested mode with mode of the found item
     [[ $(to_bool "${REQUIRES_RTTI}") -eq $(to_bool "${rtti}") ]] || return 1
     [[ $(to_bool "${DISABLE_ASSERTIONS}") -ne $(to_bool "${assertion}") ]] || return 1
 
-    local shared_mode
-    shared_mode="$(${lc} --shared-mode)" || return 1
+    "${lc}" --shared-mode >/dev/null || return 1
 }
 
 # Check if the binary artifact is installed
@@ -166,10 +162,18 @@ setup_artifact_variables_llvm() {
       is_ins=$(check_llvm_config_version 1 "${lc}") || return 1
     fi
 
+    # Consumed by the dynamically sourced build.sh component interface.
+    # shellcheck disable=SC2034
     LLVM_CONFIG="${lc}"
+    # Consumed by the dynamically sourced build.sh component interface.
+    # shellcheck disable=SC2034
     LLVM_INSTALL="$(${lc} --prefix)"
     LLVM_BIN="$(${lc} --bindir)"
+    # Consumed by the dynamically sourced build.sh component interface.
+    # shellcheck disable=SC2034
     BITCODE_CC="${LLVM_BIN}/clang"
+    # Consumed by the dynamically sourced build.sh component interface.
+    # shellcheck disable=SC2034
     BITCODE_CXX="${LLVM_BIN}/clang++"
 }
 

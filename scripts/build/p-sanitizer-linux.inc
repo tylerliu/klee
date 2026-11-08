@@ -1,6 +1,5 @@
 setup_artifact_variables_sanitizer() {
   local SANITIZER_LLVM_VERSION_MAJOR="${SANITIZER_LLVM_VERSION/.*/}"
-  local SANITIZER_LLVM_VERSION_MINOR="${SANITIZER_LLVM_VERSION/*./}"
   local version="-${SANITIZER_LLVM_VERSION_MAJOR}"
 
   # Only set LLVM_CONFIG if not set yet
@@ -30,7 +29,6 @@ is_installed_sanitizer() {
    return 1
   fi
   local SANITIZER_LLVM_VERSION_MAJOR="${SANITIZER_LLVM_VERSION/.*/}"
-  local SANITIZER_LLVM_VERSION_MINOR="${SANITIZER_LLVM_VERSION/*./}"
   local version="${SANITIZER_LLVM_VERSION_MAJOR}"
 
   # The compiler can be installed without its sanitizer runtime libraries.

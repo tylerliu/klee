@@ -44,8 +44,28 @@ merges = [r.split() for r in git('rev-list', '--parents', '--first-parent', 'HEA
 merge = next((r[0] for r in merges if r[1:] == [m['donor'], m['upstream']]), None)
 require(merge is not None, 'missing merge with donor first parent and upstream v3.3 second parent')
 require(fingerprint(merge) == m['code_tree_sha256'], 'merge source differs from tested code')
-require(fingerprint('HEAD') == m['code_tree_sha256'], 'HEAD source differs from tested code')
 base, donor, upstream, accepted = [tree(ref) for ref in (m['merge_base'], m['donor'], m['upstream'], merge)]
+# The sealed merge fingerprint remains immutable. Subsequent build-only fixes
+# require exact before/after Git blobs; no executor file can enter this allowlist.
+followup_path = ROOT / 'docs/pix-port-audit/build-followup.json'
+followup_changes = {}
+if followup_path.exists():
+    followup = json.loads(followup_path.read_text())
+    require(followup['format'] == 1 and followup['base_merge'] == merge,
+            'invalid build followup receipt')
+    followup_changes = followup['changes']
+    expected = {p: entry for p, entry in accepted.items() if not metadata(p)}
+    for path, change in followup_changes.items():
+        require(path.startswith('scripts/build/') and path.endswith('.inc')
+                and '..' not in path.split('/'), 'followup outside build fragments')
+        require(change['before'] == accepted.get(path), f'{path}: invalid followup base')
+        require(change['after']['mode'] == change['before']['mode'],
+                f'{path}: followup changed file mode')
+        expected[path] = change['after']
+    current = {p: entry for p, entry in tree('HEAD').items() if not metadata(p)}
+    require(current == expected, 'HEAD differs from sealed merge plus recorded build followup')
+else:
+    require(fingerprint('HEAD') == m['code_tree_sha256'], 'HEAD source differs from tested code')
 for item in m['conflicts']:
     path = item['path']
     for key, source in [('base', base), ('donor', donor), ('upstream', upstream)]:
@@ -57,7 +77,9 @@ for item in m['overridden_automatic_results']:
         require(item['accepted'] == accepted.get(item['path']), f"{item['path']}: automatic-result override differs")
 require(not git('status', '--porcelain'), 'worktree has uncommitted changes')
 print(f'PASS: merge {merge[:12]} has the exact PIX donor and upstream v3.3 parents')
-print(f"PASS: source fingerprint matches the tested port; only {META} are excluded as audit metadata")
+print(f"PASS: sealed merge fingerprint matches tested port; only {META} are audit metadata")
+if followup_changes:
+    print(f'PASS: HEAD adds exactly {len(followup_changes)} recorded build-fragment changes; executor/runtime/test source is unchanged')
 print(f"PASS: provenance records {len(m['conflicts'])} conflicts and {len(m['overridden_automatic_results'])} automatic-result overrides")
 if args.docker_image:
     paths = sorted(p for p in set(upstream) | set(accepted)
