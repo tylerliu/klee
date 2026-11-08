@@ -1,0 +1,61 @@
+{
+  "base_merge": "a9e144fc70f5d5de0b11062a183d4255159ab1f0",
+  "changes": {
+    "lib/Core/ExecutionState.cpp": {
+      "after": {
+        "blob": "e43df1e3945b90bb7e59c5cf31479167dbf659b7",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "d1b7aa2a1a5a9b3a3ab324fd17a788b99f95056c",
+        "mode": "100644"
+      }
+    },
+    "lib/Core/Executor.cpp": {
+      "after": {
+        "blob": "a3f7f81d2a686a8447b557820d26e9365ce8b8c7",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "5b5bcb9172fb3a88a836f1096bab3934a78e6797",
+        "mode": "100644"
+      }
+    },
+    "test/Feature/DebugLogFunctionCalls.c": {
+      "after": {
+        "blob": "2d456907ee7ed5053d3d2327ad99ccb219351ad9",
+        "mode": "100644"
+      },
+      "before": null
+    }
+  },
+  "format": 1,
+  "purpose": "Stable unsupported-mode rejection with assertions disabled and opt-in diagnostic function-call logging",
+  "validation": {
+    "asserts_off_cxx_image": "pix-klee-test:cxx-noassert-fixed",
+    "asserts_off_cxx_image_id": "sha256:60b9c0b03c52a7cc81819121e908ee40f613935f45dac8a52ceddc35c526e86f",
+    "asserts_off_cxx_systemtests": {
+      "expected_failures": 2,
+      "failed": 0,
+      "passed": 447,
+      "unsupported": 6,
+      "workers": 4
+    },
+    "baseline_reproduction": "All three reported tests failed locally with assertions disabled and CI libc++/uclibc artifacts",
+    "focused_tests": "All three originally failing tests plus DebugLogFunctionCalls pass",
+    "pix_accelerator_witnesses": 124,
+    "pix_full_smoke": "passed with assertions enabled, minimal NF libc, structured traces, replay and accelerator ownership checks",
+    "pix_image": "pix-klee-test:llvm18-ci-runtime-fix",
+    "pix_image_id": "sha256:d4f775ba2e793cf5447d6e517501726f11b3ea4bbc34532bb8b131c6da270aba",
+    "pix_patch_sha256": "d948c7a00e3de7f9ba16e7706c41dfd06a103b90efc3e805e20e19d0f17c492b",
+    "pix_systemtests": {
+      "expected_failures": 2,
+      "failed": 0,
+      "passed": 424,
+      "unsupported": 29
+    },
+    "source_job": "https://github.com/tylerliu/klee/actions/runs/42512083178/job/128827120156",
+    "unit_tests_pass": 43,
+    "upstream_patch_application": "passed"
+  }
+}

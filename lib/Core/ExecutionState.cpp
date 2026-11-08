@@ -1110,6 +1110,9 @@ void ExecutionState::terminateState(ExecutionState **replace) {
 }
 
 void ExecutionState::startInvariantSearch() {
+  if (UseIncompleteMerge)
+    klee_error("Loop analysis is not supported with incomplete merge.");
+
   KInstruction *inst = prevPC;
   llvm::Instruction *linst = inst->inst;
   assert(linst);
@@ -1139,8 +1142,6 @@ void ExecutionState::startInvariantSearch() {
            "The klee_induce_invariants must be placed into the condition"
            " of a loop.");
     
-    assert(!UseIncompleteMerge &&
-           "Loop analysis is not supported with incomplete merge.");
 
     std::unique_ptr<ExecutionState> loop_state(nullptr);
     loop_state.swap(executionStateForLoopInProcess);

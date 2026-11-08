@@ -432,6 +432,11 @@ enum PrintDebugInstructionsType {
   FILE_COMPACT ///
 };
 
+cl::opt<bool> DebugLogFunctionCalls(
+    "debug-log-function-calls", cl::init(false),
+    cl::desc("Log each called function once (default=false)"),
+    cl::cat(DebugCat));
+
 llvm::cl::bits<PrintDebugInstructionsType> DebugPrintInstructions(
     "debug-print-instructions",
     llvm::cl::desc("Log instructions during execution."),
@@ -1820,7 +1825,8 @@ void Executor::executeCall(ExecutionState &state,
                            KInstruction *ki,
                            Function *f,
                            std::vector< ref<Expr> > &arguments) {
-  klee_warning_once(f, "calling function %s.", f->getName().data());
+  if (DebugLogFunctionCalls && f)
+    klee_warning_once(f, "calling function %s.", f->getName().data());
   Instruction *i = ki->inst;
   if (isa_and_nonnull<DbgInfoIntrinsic>(i))
     return;

@@ -183,3 +183,41 @@ system tests, two expected failures, 29 unsupported tests, NAT/XDP symbolic
 execution (21/33 witnesses), seven native NF builds, virtual-port startup,
 contract ABI, havoc replay and 124 clean accelerator witnesses. The refreshed
 PIX patch also applies cleanly to the pinned upstream KLEE commit.
+
+## Follow-up: assertions-disabled CI and C++ diagnostic output (2026-11-08)
+
+The linked Linux **Asserts disabled** job built successfully but failed three
+system tests: `LoppWithIncompleteMerge.c`, `nested_fail.cpp` and
+`simple_exception_fail.cpp`. All three failures were reproduced locally with
+assertions disabled and CI's libc++ / standard uclibc artifacts.
+
+The loop incompatibility check was an `assert`, so release builds discarded it.
+It is now an explicit `klee_error` before invariant processing. The existing
+negative test keeps its original expectations and passes with assertions off.
+
+The two C++ exceptions already terminated correctly. The unconditional PIX
+function-call warnings interrupted libc++'s multi-part stderr diagnostic,
+splitting its expected line. Those diagnostic warnings are now opt-in via
+`--debug-log-function-calls`. The new `DebugLogFunctionCalls.c` test verifies a
+quiet default and once-per-function logging when enabled. Structured call paths,
+constraint trees, request events and performance-contract tracing are unchanged;
+the existing exception test expectations have not been weakened.
+
+`runtime-followup.json` records exact before/after blobs for the two runtime
+files and the added regression test. The verifier permits only those paths and
+compares all 145 port/test files against the updated Docker image. The original
+sealed merge and the earlier follow-up receipts remain intact.
+
+The C++ reproduction image enables `ENABLE_KLEE_LIBCXX`, `ENABLE_KLEE_EH_CXX`
+and uses `ENABLE_KLEE_ASSERTS=OFF`. It contains the libc++ and uclibc archives
+from the same GHCR artifact tags used by CI. The normal PIX validation image
+retains assertions and its original minimal NF libc. Image identities, test
+results and the synchronized patch SHA256 are recorded in the receipt.
+
+Final assertions-disabled C++ results: 43 unit tests passed; 447 system tests
+passed, two expected failures and six unsupported, with no failures. Lit used
+four workers to match the container CPU limit. An initial oversubscribed run
+used 48 workers and timed out the existing ten-second const-array performance
+test; that test passed alone and in the complete four-worker run without any
+test changes. The normal PIX smoke run passed 43 unit tests, 424 system tests,
+two expected failures, 29 unsupported, and all NF/trace/replay/accelerator checks.
