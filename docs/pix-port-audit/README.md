@@ -221,3 +221,45 @@ used 48 workers and timed out the existing ten-second const-array performance
 test; that test passed alone and in the complete four-worker run without any
 test changes. The normal PIX smoke run passed 43 unit tests, 424 system tests,
 two expected failures, 29 unsupported, and all NF/trace/replay/accelerator checks.
+
+## Follow-up: BitArray ownership in ASan loop tests (2026-11-08)
+
+The linked **Linux (ASan)** job built successfully but failed ten loop-invariant
+and timed-access tests. All ten failures were reproduced locally with
+AddressSanitizer and LeakSanitizer enabled. Leak reports identify BitArray
+assignments reached through HavocInfo/state copies during loop analysis.
+
+BitArray's copy assignment overwrote its owned pointer without releasing the
+old allocation. Assigning an array to itself also redirected its source pointer
+to uninitialized storage before copying. Assignment now uses a temporary copy
+and swaps buffers; destruction releases the previous allocation, and an explicit
+self-assignment check preserves the original bits.
+
+Three new native unit tests cover independent storage, bit preservation on
+self-assignment, and repeated empty/nonempty assignments. Against the old header,
+they reproduce corrupted bits and 404 leaked bytes across 67 allocations. Against
+the fixed header, all three pass under ASan with leak detection enabled. The
+integrated ASan loop run passes all 11 selected tests, including the ten that
+failed in CI. No sanitizer checks, leak detection or test expectations were
+disabled to obtain these results.
+
+`asan-followup.json` records exact Git blobs for the header and its new unit-test
+integration. The verifier permits only these four additional paths and now
+compares 148 port/test files against the updated images. Original merge and
+prior receipts remain unchanged. The ASan image uses Clang 18 with an
+instrumented KLEE executor and unsanitized system LLVM/Z3 libraries; it reproduces
+the reported KLEE-owned leaks without claiming CI's entire dependency build.
+
+The integrated ASan unit suite passes 45 tests; normal PIX passes 46 unit
+tests and its full smoke suite (424 system passes, two expected failures,
+29 unsupported; native NFs, NAT/XDP traces, replay and accelerator checks).
+For the broad ASan system scan, match CI's `ulimit -s 16384` from
+`scripts/build/run-tests.sh`. At the default 8 MiB Docker stack, the existing
+ArrayOpt/test_nier case crashes on both baseline and fixed images; it passes
+on the unchanged baseline with CI's 16 MiB setting. Leak detection remains
+enabled throughout.
+
+The final full ASan system suite passes 444 tests, with nine unsupported and
+two expected failures (455 discovered, no failures). Leak detection stays on,
+with four workers and CI's 16 MiB stack. The local build uses Z3 only; CI's
+ASan job also enables STP, so supported-test counts need not match exactly.

@@ -1,0 +1,75 @@
+{
+  "base_merge": "a9e144fc70f5d5de0b11062a183d4255159ab1f0",
+  "changes": {
+    "include/klee/ADT/BitArray.h": {
+      "after": {
+        "blob": "984ca35fbaacdbea258b1f137e68a9c4fd763551",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "28a79277a5c28de700c6ecf37f5facf4db205beb",
+        "mode": "100644"
+      }
+    },
+    "unittests/BitArray/BitArrayTest.cpp": {
+      "after": {
+        "blob": "742bbceb5afb4a99473e1b7c647da2fbb593bb47",
+        "mode": "100644"
+      },
+      "before": null
+    },
+    "unittests/BitArray/CMakeLists.txt": {
+      "after": {
+        "blob": "6a5874b806274054a6cbf0c74bc861ab86ebd643",
+        "mode": "100644"
+      },
+      "before": null
+    },
+    "unittests/CMakeLists.txt": {
+      "after": {
+        "blob": "58e65953928e5cfd5ba644d198a6be3d0303e8ce",
+        "mode": "100644"
+      },
+      "before": {
+        "blob": "ba1bba20e22c69f4fb25a449bf39598e24be1aab",
+        "mode": "100644"
+      }
+    }
+  },
+  "format": 1,
+  "purpose": "Correct BitArray copy-assignment ownership and self-assignment semantics exposed by ASan loop tests",
+  "validation": {
+    "asan_image": "pix-klee-test:asan-bitarray-fixed",
+    "asan_image_id": "sha256:7edf3ab0325db3368ca528c5b4330c243632d9679ee06a108f79a51a23f14013",
+    "asan_unit_tests_pass": 45,
+    "baseline_reproduction": "All ten CI loop failures reproduced under ASan; new unit tests detect self-assignment corruption and 404 leaked bytes in 67 allocations",
+    "ci_stack_limit_kib": 16384,
+    "focused_asan_loop_tests": "11 passed, including all ten originally failing cases, with leak detection enabled",
+    "full_asan_systemtests": {
+      "detect_leaks": true,
+      "expected_failures": 2,
+      "failed": 0,
+      "passed": 444,
+      "stack_kib": 16384,
+      "unsupported": 9,
+      "workers": 4
+    },
+    "normal_pix_image": "pix-klee-test:llvm18-bitarray-fixed",
+    "normal_pix_image_id": "sha256:c0213dd0a6f6026c19266297f996173c2b302cf313f5c2588f19172e8785b78e",
+    "normal_pix_smoke": {
+      "accelerator_witnesses": 124,
+      "expected_failures": 2,
+      "nat_witnesses": 21,
+      "native_nf_builds": 7,
+      "replay": "pass",
+      "system_pass": 424,
+      "unit_pass": 46,
+      "unsupported": 29,
+      "xdp_witnesses": 33
+    },
+    "patch_applies_to_pinned_upstream": true,
+    "pix_patch_sha256": "3e33729579f80fce0e9f45c9965ec3249c56860f3ba22c427dfa0a0031390822",
+    "source_job": "https://github.com/tylerliu/klee/actions/runs/42515594390/job/128837777777",
+    "standalone_unit_tests": "3 passed with ASAN_OPTIONS=detect_leaks=1 after the fix"
+  }
+}

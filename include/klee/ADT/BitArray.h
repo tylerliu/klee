@@ -12,6 +12,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <utility>
 
 namespace klee {
 
@@ -43,11 +44,11 @@ public:
     : BitArray(b, b.size()) {
   }
 
-  BitArray & operator=(const BitArray &b) {
-    len = length(b.size());
-    if (0 < len) {
-      bits = new uint32_t[len];
-      memcpy(bits, b.bits, sizeof(*bits)*len);
+  BitArray &operator=(const BitArray &b) {
+    if (this != &b) {
+      BitArray copy(b);
+      std::swap(len, copy.len);
+      std::swap(bits, copy.bits);
     }
     return *this;
   }

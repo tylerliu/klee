@@ -51,7 +51,8 @@ expected = {p: entry for p, entry in accepted.items() if not metadata(p)}
 followup_changes = {}
 compiler_changes = {}
 runtime_changes = {}
-for filename in ('build-followup.json', 'compiler-followup.json', 'runtime-followup.json'):
+asan_changes = {}
+for filename in ('build-followup.json', 'compiler-followup.json', 'runtime-followup.json', 'asan-followup.json'):
     followup_path = ROOT / 'docs/pix-port-audit' / filename
     if not followup_path.exists():
         continue
@@ -67,14 +68,20 @@ for filename in ('build-followup.json', 'compiler-followup.json', 'runtime-follo
             require(path in ('lib/Module/KModule.cpp', 'lib/Module/LoopAnalysis.cpp'),
                     'followup outside the two compiler fixes')
             compiler_changes[path] = change
-        else:
+        elif filename == 'runtime-followup.json':
             require(path in ('lib/Core/ExecutionState.cpp', 'lib/Core/Executor.cpp',
                              'test/Feature/DebugLogFunctionCalls.c'),
                     'followup outside the runtime fixes and their regression test')
             runtime_changes[path] = change
+        else:
+            require(path in ('include/klee/ADT/BitArray.h', 'unittests/CMakeLists.txt',
+                             'unittests/BitArray/CMakeLists.txt', 'unittests/BitArray/BitArrayTest.cpp'),
+                    'followup outside BitArray ownership fix and its unit tests')
+            asan_changes[path] = change
         require(change['before'] == expected.get(path), f'{path}: invalid followup base')
         if change['before'] is None:
-            require(path == 'test/Feature/DebugLogFunctionCalls.c' and
+            require(path in ('test/Feature/DebugLogFunctionCalls.c',
+                             'unittests/BitArray/CMakeLists.txt', 'unittests/BitArray/BitArrayTest.cpp') and
                     change['after']['mode'] == '100644', 'unexpected followup addition')
         else:
             require(change['after']['mode'] == change['before']['mode'],
@@ -100,11 +107,13 @@ if compiler_changes:
     print(f'PASS: HEAD contains exactly {len(compiler_changes)} recorded compiler-fix source changes')
 if runtime_changes:
     print(f'PASS: HEAD contains exactly {len(runtime_changes)} recorded runtime/test changes')
+if asan_changes:
+    print(f'PASS: HEAD contains exactly {len(asan_changes)} recorded BitArray/test changes')
 print(f"PASS: provenance records {len(m['conflicts'])} conflicts and {len(m['overridden_automatic_results'])} automatic-result overrides")
 if args.docker_image:
     paths = sorted({p for p in set(upstream) | set(accepted)
                     if not metadata(p) and upstream.get(p) != accepted.get(p)}
-                   | set(runtime_changes))
+                   | set(runtime_changes) | set(asan_changes))
     local = {p: [hashlib.sha256((ROOT / p).read_bytes()).hexdigest(), (ROOT / p).stat().st_mode & 0o111]
              if (ROOT / p).exists() else None for p in paths}
     code = """import hashlib,json,pathlib,sys
